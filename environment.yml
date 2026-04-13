@@ -1,0 +1,23 @@
+name: incontext-bayesians
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - torch==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+    - transformer_lens==2.16.1
+    - transformers>=4.43.0
+    - accelerate>=0.33.0
+    - einops
+    - jaxtyping
+    - numpy
+    - matplotlib
+    - scienceplots
+    - plotly
+    - tqdm
+    - requests
+    - huggingface_hub

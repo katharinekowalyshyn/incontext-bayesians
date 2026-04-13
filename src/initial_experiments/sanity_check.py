@@ -18,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-from graphs import Ring, MONTHS, MONTH_TO_COLOR, MONTH_COLORS
+from graphs import Ring, RING_WORDS, RING_WORD_TO_COLOR, RING_COLORS
 
 # ── Grid (inlined from utils.py to avoid torch import) ────────────────────────
 
@@ -237,7 +237,7 @@ def plot_graph_diagrams(grid, ring):
 
     for w in ring.words:
         x, y = pos_ring[w]
-        ax.scatter(x, y, s=200, color=MONTH_TO_COLOR[w], zorder=3,
+        ax.scatter(x, y, s=200, color=RING_WORD_TO_COLOR[w], zorder=3,
                    edgecolors="black", linewidths=0.8)
         offset = 0.18
         ax.text(x * (1 + offset), y * (1 + offset), w, ha="center", va="center", fontsize=8)
@@ -293,7 +293,7 @@ def plot_sample_interleaved_walk(grid, ring, rho=0.5, n_tokens=120):
     for i, (tok, lab) in enumerate(zip(seq, labels)):
         col = i % tokens_per_row
         row = i // tokens_per_row
-        color = WORD_TO_COLOR.get(tok) or MONTH_TO_COLOR.get(tok, "gray")
+        color = WORD_TO_COLOR.get(tok) or RING_WORD_TO_COLOR.get(tok, "gray")
         rect = mpatches.FancyBboxPatch(
             (col, -row - 0.9), 0.95, 0.85,
             boxstyle="round,pad=0.03",
