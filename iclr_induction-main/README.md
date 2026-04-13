@@ -101,6 +101,10 @@ A random walk produces a sequence of words by moving to adjacent cells (up/down/
 ├── 01_reproduce.py          # Fig 2 (accuracy + PCA) and Fig 6 (bigram PCA)
 ├── 02_ablation.py           # Fig 3 (ablation accuracy) and Fig 4 (ablation PCA)
 ├── 03_neighbor_mixing.py    # Fig 5 (toy model of neighbor mixing)
+├── initial_experiments/     # Competing-structures extension (CS 145 BDL final project)
+│   ├── graphs.py            # Ring class (12-node cycle of months)
+│   ├── sanity_check.py      # Sanity checks for grid/ring walks and mixing
+│   └── results/             # Outputs from sanity_check.py
 └── results/
     ├── reproduce/
     │   ├── data/            # Cached activations, accuracies, sequences
@@ -112,6 +116,54 @@ A random walk produces a sequence of words by moving to adjacent cells (up/down/
         ├── data/            # Cached mixing projections
         └── plots/
 ```
+
+---
+
+## Competing-Structures Extension (CS 145 BDL Final Project)
+
+The `initial_experiments/` folder contains work extending the baseline to a **competing-structures** setting, where the model receives interleaved random walks from two different graphs and must implicitly select which structure governs the environment.
+
+### Second graph: 12-node ring of months
+
+In addition to the 4×4 grid, we introduce a 12-node cycle graph whose nodes are the months of the year:
+
+```
+january — february — march — april — may — june — july — august — september — october — november — december — (back to january)
+```
+
+Each month connects only to its two cyclic neighbors. The month vocabulary is **fully disjoint** from the grid vocabulary, which is intentional: month names carry strong pretrained sequential associations (January → February, etc.), creating a meaningful semantic contrast with the grid's arbitrary word labels.
+
+### Mixing design
+
+Interleaved contexts are built via **across-sequence mixing**: each segment is a contiguous pure walk on one graph; segments are concatenated into the context at mixture ratio ρ (fraction of segments from the ring). A segment length of 100 tokens gives ~14 segments per 1,400-token context.
+
+### `initial_experiments/sanity_check.py` — Graph and mixing sanity checks
+
+No GPU required. Verifies the data generation pipeline before running LLM experiments.
+
+```bash
+python initial_experiments/sanity_check.py
+```
+
+**Checks run:**
+
+| Check | Result |
+|-------|--------|
+| Transition matrix accuracy (empirical ≈ true) | Grid max_err=0.023, Ring max_err=0.025 |
+| Vocabulary overlap (grid ∩ ring = ∅) | Disjoint |
+| Node coverage at T=1,400 | 100% for both graphs |
+| Mixing ratio accuracy at ρ ∈ {0, 0.25, 0.5, 0.75, 1.0} | All within 0.05 of target |
+
+**Outputs** (in `initial_experiments/results/`):
+
+| File | Description |
+|------|-------------|
+| `graph_diagrams.png` | Side-by-side diagrams of the grid and ring graphs |
+| `sample_interleaved_walk.png` | 120-token interleaved walk at ρ=0.5, colored by source graph |
+| `mixing_ratio_sweep.png` | Observed vs. target ring fraction across ρ values |
+| `adjacency.npz` | Binary adjacency matrices for both graphs |
+
+---
 
 ## Reproducibility
 
