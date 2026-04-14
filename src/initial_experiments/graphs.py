@@ -12,21 +12,36 @@ This file defines Ring variants:
 
 import numpy as np
 
-# ── Month ring (original, kept for reference) ──────────────────────────────────
+# ── Month ring ─────────────────────────────────────────────────────────────────
 
+# Natural ordering: the in-context ring matches the model's semantic prior
+# (Jan→Feb→...→Dec). Expect fast, clean learning because semantic prior helps.
 MONTHS = [
     "january", "february", "march", "april",
     "may", "june", "july", "august",
     "september", "october", "november", "december",
 ]
 
-MONTH_COLORS = [
+# Permuted ordering: interleave months offset by 6 so that no two naturally-
+# adjacent months are neighbors in the in-context ring.
+# Ring: Jan→Aug→Mar→Oct→May→Dec→Jul→Feb→Sep→Apr→Nov→Jun→(Jan)
+# Minimum natural distance between any in-context-adjacent pair = 5 months.
+# This creates a direct conflict between the model's semantic prior and the
+# structure defined by the random walk.
+MONTHS_PERMUTED = [
+    "january", "august", "march", "october",
+    "may", "december", "july", "february",
+    "september", "april", "november", "june",
+]
+
+MONTH_COLORS_NATURAL = [
     "#1f77b4", "#aec7e8", "#ffbb78", "#ff7f0e",
     "#2ca02c", "#98df8a", "#d62728", "#ff9896",
     "#9467bd", "#c5b0d5", "#8c564b", "#c49c94",
 ]
 
-MONTH_TO_COLOR = {m: c for m, c in zip(MONTHS, MONTH_COLORS)}
+MONTH_COLORS = MONTH_COLORS_NATURAL  # backwards-compat alias
+MONTH_TO_COLOR = {m: c for m, c in zip(MONTHS, MONTH_COLORS_NATURAL)}
 
 
 # ── Neutral ring: fully disjoint from grid ─────────────────────────────────────

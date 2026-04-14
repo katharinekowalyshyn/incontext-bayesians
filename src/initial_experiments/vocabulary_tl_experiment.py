@@ -1,20 +1,39 @@
 """
 vocabulary_tl_experiment.py
 
-TransformerLens version of the vocabulary experiment.
-Uses a single forward pass per sequence to get real token probabilities
-at every position — much faster and more precise than the Ollama greedy approach.
+TransformerLens version of the vocabulary/ring experiment.
+Uses a single forward pass per sequence — fast and precise.
 
-Two conditions:
-  disjoint  — Ring uses fully neutral vocabulary (candle, brick, fern, ...)
-  overlap   — 3 ring words (rock, sand, box) shared with grid vocabulary
+Four conditions:
+
+  months_natural  — Ring uses months in natural sequential order (Jan→Feb→...→Dec).
+                    The model's semantic prior matches the in-context ring structure.
+                    Expect fast, clean learning.
+
+  months_permuted — Ring uses a permuted month order where no naturally-adjacent
+                    months are in-context neighbors (Jan→Aug→Mar→Oct→May→Dec→Jul→
+                    Feb→Sep→Apr→Nov→Jun). The semantic prior directly conflicts with
+                    the in-context structure. Replicates the days-of-week experiment
+                    from Park et al. (ICLR 2025) with months.
+
+  neutral_disjoint — Ring uses semantically neutral words (candle, brick, fern, ...)
+                     fully disjoint from the grid vocabulary. No semantic prior;
+                     serves as a clean control for in-context learning speed.
+
+  neutral_overlap  — 3 ring words (rock, sand, box) are shared with the grid
+                     vocabulary. Tests ambiguity at shared tokens.
 
 For each condition, sweeps rho in {0.0, 0.5, 1.0} and measures
-P(next token ∈ valid neighbors) at sampled context lengths up to 1400.
+P(next token ∈ valid neighbors) — summed softmax probability over ground-truth
+neighbor tokens — at sampled context lengths up to 1400.
 
-Usage (with conda env active):
+Our contribution: the interleaved mixing approach (rho > 0), where grid and ring
+random-walk segments are concatenated into a single sequence. This tests whether
+two competing in-context structures interfere with each other's learning.
+
+Usage:
     python src/initial_experiments/vocabulary_tl_experiment.py
-    python src/initial_experiments/vocabulary_tl_experiment.py --condition disjoint
+    python src/initial_experiments/vocabulary_tl_experiment.py --condition months_natural
     python src/initial_experiments/vocabulary_tl_experiment.py --replot
 """
 
@@ -26,30 +45,24 @@ import argparse
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from tqdm import tqdm
+from transformer_lens import HookedTransformer
 
-# ── Path setup ─────────────────────────────────────────────────────────────────
-HERE      = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
-ICLR_DIR  = os.path.join(REPO_ROOT, "iclr_induction-main")
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 
-sys.path.insert(0, ICLR_DIR)   # for utils.py (load_model, tokenize_sequence)
-sys.path.insert(0, HERE)        # for graphs.py, sanity_check.py
-
-from utils import load_model, MODEL_NAME
 from graphs import (
     Ring,
-    RING_WORDS, RING_WORD_TO_COLOR,
-    RING_WORDS_OVERLAP, OVERLAP_WORD_TO_COLOR,
-    SHARED_WORDS,
+    MONTHS, MONTHS_PERMUTED,
+    RING_WORDS, RING_WORDS_OVERLAP, SHARED_WORDS,
 )
-from sanity_check import Grid, WORDS as GRID_WORDS, WORD_TO_COLOR, set_seed, make_interleaved_sequence
+from sanity_check import Grid, WORDS as GRID_WORDS, set_seed, make_interleaved_sequence
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
+MODEL_NAME   = "meta-llama/Llama-3.1-8B"
 RHOS         = [0.0, 0.5, 1.0]
-N_SEQUENCES  = 16       # more sequences → smoother curves (TL is fast, one pass each)
+N_SEQUENCES  = 16
 SEQ_LEN      = 1400
 SEGMENT_LEN  = 100
 EVAL_LENGTHS = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400]
@@ -59,38 +72,54 @@ PLOT_DIR = os.path.join(HERE, "results")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 CONDITIONS = {
-    "disjoint": {
-        "label": "Disjoint vocab",
-        "ring_words": RING_WORDS,
-        "description": "Ring: candle, brick, fern, lamp, dust, wool, reef, thorn, cask, flint, marsh, prism",
+    "months_natural": {
+        "label": "Months — natural order",
+        "ring_words": MONTHS,
+        "description": (
+            "Jan→Feb→...→Dec ring; semantic prior matches in-context structure"
+        ),
+        "has_overlap": False,
     },
-    "overlap": {
-        "label": "Overlapping vocab (rock, sand, box shared)",
+    "months_permuted": {
+        "label": "Months — permuted (prior conflicts with in-context)",
+        "ring_words": MONTHS_PERMUTED,
+        "description": (
+            "Months permuted so no naturally-adjacent months are in-context neighbors "
+            "(min natural distance between any in-context-adjacent pair = 5)"
+        ),
+        "has_overlap": False,
+    },
+    "neutral_disjoint": {
+        "label": "Neutral words — disjoint",
+        "ring_words": RING_WORDS,
+        "description": (
+            "Semantically neutral words, fully disjoint from grid; no semantic prior"
+        ),
+        "has_overlap": False,
+    },
+    "neutral_overlap": {
+        "label": "Neutral words — overlapping vocab",
         "ring_words": RING_WORDS_OVERLAP,
-        "description": "3 ring words (rock, sand, box) also appear in grid",
+        "description": "3 ring words (rock, sand, box) shared with grid",
+        "has_overlap": True,
     },
 }
 
-# ── Model helpers ──────────────────────────────────────────────────────────────
+# ── Model loading ──────────────────────────────────────────────────────────────
 
-def tokenize_sequence(model, sequence):
-    """Tokenize a space-separated word sequence with a leading space."""
-    text = " " + " ".join(sequence)
-    return model.tokenizer(text, return_tensors="pt").input_ids.to(model.cfg.device)
-
-
-def get_word_token_id(model, word):
-    """Return the single token ID for ' word' (with leading space).
-    Raises if the word tokenizes to more than one token.
-    """
-    ids = model.tokenizer.encode(" " + word, add_special_tokens=False)
-    if len(ids) != 1:
-        raise ValueError(f"'{word}' tokenizes to {len(ids)} tokens: {ids}")
-    return ids[0]
+def load_model():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = HookedTransformer.from_pretrained_no_processing(
+        MODEL_NAME, device=device,
+    )
+    model.eval()
+    return model
 
 
-def build_vocab_token_map(model, words):
-    """Return {word: token_id} for a list of words. Verifies single-token assumption."""
+# ── Token map ─────────────────────────────────────────────────────────────────
+
+def build_token_map(model, words):
+    """Return {word: token_id} for a list of words. Warns on multi-token words."""
     mapping = {}
     multi_token = []
     for w in words:
@@ -99,10 +128,9 @@ def build_vocab_token_map(model, words):
             mapping[w] = ids[0]
         else:
             multi_token.append((w, ids))
+            mapping[w] = ids[0]  # use first token as approximation
     if multi_token:
-        print(f"  WARNING: multi-token words (probabilities will be approximate): {multi_token}")
-        for w, ids in multi_token:
-            mapping[w] = ids[0]   # use first token as approximation
+        print(f"  WARNING: multi-token words (using first token): {multi_token}")
     return mapping
 
 
@@ -112,15 +140,21 @@ def build_vocab_token_map(model, words):
 def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
                             grid_tok, ring_tok, is_overlap):
     """
-    Single forward pass over a full sequence.
+    Single forward pass over the full sequence.
+
+    At each eval position L, computes:
+        P(next token ∈ valid neighbors) = sum of softmax probabilities over the
+        ground-truth neighbor tokens for the current graph.
+
     Returns:
-        grid_probs   : {L: float}  — P(next ∈ grid neighbors) at grid-labeled positions
-        ring_probs   : {L: float}  — P(next ∈ ring neighbors) at ring-labeled positions
-        shared_probs : {L: float}  — same but only at shared-vocab positions (overlap only)
+        grid_probs   : {L: float}
+        ring_probs   : {L: float}
+        shared_probs : {L: float}  (overlap condition only)
     """
-    tokens = tokenize_sequence(model, sequence)           # [1, seq_len+1]
-    logits = model(tokens)                                 # [1, seq_len+1, vocab]
-    probs  = torch.softmax(logits[0, 1:, :], dim=-1)      # [seq_len, vocab]  — remove BOS
+    text   = " " + " ".join(sequence)
+    tokens = model.tokenizer(text, return_tensors="pt").input_ids.to(model.cfg.device)
+    logits = model(tokens)                             # [1, seq_len+1, vocab]
+    probs  = torch.softmax(logits[0, 1:, :], dim=-1)  # [seq_len, vocab] — skip BOS
 
     grid_probs, ring_probs, shared_probs = {}, {}, {}
 
@@ -129,13 +163,13 @@ def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
         current_label = labels[L - 1]
 
         if current_label == "grid":
-            valid  = grid.get_valid_next_words(current_word)
+            valid   = grid.get_valid_next_words(current_word)
             tok_map = grid_tok
         else:
-            valid  = ring.get_valid_next_words(current_word)
+            valid   = ring.get_valid_next_words(current_word)
             tok_map = ring_tok
 
-        # Sum probabilities of valid neighbor tokens
+        # Sum softmax probability over ground-truth valid neighbors
         p = sum(probs[L - 1, tok_map[nb]].item() for nb in valid if nb in tok_map)
 
         if current_label == "grid":
@@ -153,15 +187,13 @@ def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
 
 def run_condition_rho(model, condition_name, rho, n_sequences, eval_lengths,
                       seed_offset=0):
-    ring_words  = CONDITIONS[condition_name]["ring_words"]
-    grid        = Grid()
-    ring        = Ring(words=ring_words)
-    is_overlap  = (condition_name == "overlap")
-    all_vocab   = list(set(GRID_WORDS) | set(ring_words))
+    ring_words = CONDITIONS[condition_name]["ring_words"]
+    is_overlap = CONDITIONS[condition_name]["has_overlap"]
+    grid       = Grid()
+    ring       = Ring(words=ring_words)
 
-    print(f"    Building token map for {len(all_vocab)} vocabulary words...")
-    grid_tok = build_vocab_token_map(model, GRID_WORDS)
-    ring_tok = build_vocab_token_map(model, ring_words)
+    grid_tok = build_token_map(model, GRID_WORDS)
+    ring_tok = build_token_map(model, ring_words)
 
     grid_accs   = {L: [] for L in eval_lengths}
     ring_accs   = {L: [] for L in eval_lengths}
@@ -221,8 +253,14 @@ def load_condition(condition_name):
 GRID_COLOR  = "#1976D2"
 RING_COLOR  = "#C62828"
 SHARE_COLOR = "#FF8F00"
-RHO_LABEL   = {0.0: "ρ=0 (pure)", 0.5: "ρ=0.5 (mixed)", 1.0: "ρ=1 (pure)"}
-RHO_COLORS  = {0.0: "#1565C0", 0.5: "#6A1B9A", 1.0: "#B71C1C"}
+RHO_LABEL   = {0.0: "ρ=0 (pure grid)", 0.5: "ρ=0.5 (mixed)", 1.0: "ρ=1 (pure ring)"}
+
+COND_COLORS = {
+    "months_natural":   "#1565C0",
+    "months_permuted":  "#AD1457",
+    "neutral_disjoint": "#2E7D32",
+    "neutral_overlap":  "#E65100",
+}
 
 
 def _curve(ax, accs, color, label, ls="-"):
@@ -244,7 +282,7 @@ def _style_ax(ax, title):
     ax.set_xlabel("Context length (tokens)", fontsize=10)
     ax.set_title(title, fontsize=11)
     ax.set_xlim(0, SEQ_LEN + 50)
-    ax.set_ylim(-0.02, 0.55)   # probabilities are much lower than greedy accuracy
+    ax.set_ylim(-0.02, 0.65)
     ax.legend(fontsize=8, framealpha=0.85)
     ax.grid(True, alpha=0.25)
 
@@ -255,22 +293,16 @@ def plot_condition(results, condition_name):
 
     for ax, rho in zip(axes, [0.0, 0.5, 1.0]):
         data = results[rho]
-        _curve(ax, data["grid"],   GRID_COLOR,  "Grid neighbors")
-        _curve(ax, data["ring"],   RING_COLOR,  "Ring neighbors")
-        if condition_name == "overlap":
+        _curve(ax, data["grid"], GRID_COLOR, "Grid neighbors")
+        _curve(ax, data["ring"], RING_COLOR, "Ring neighbors")
+        if CONDITIONS[condition_name]["has_overlap"]:
             _curve(ax, data["shared"], SHARE_COLOR, "Shared-word positions", ls="--")
-
-        # Chance: avg_degree / full_vocab_size (28 vocab words in model's distribution)
-        ax.axhline(3 / len(model_vocab_size_proxy()),
-                   color=GRID_COLOR, lw=0.8, ls=":", alpha=0.5, label="Grid chance")
-        ax.axhline(2 / len(model_vocab_size_proxy()),
-                   color=RING_COLOR,  lw=0.8, ls=":", alpha=0.5, label="Ring chance")
         _style_ax(ax, RHO_LABEL[rho])
 
     axes[0].set_ylabel("P(next token ∈ valid neighbors)", fontsize=10)
     fig.suptitle(
         f"Llama 3.1 8B (base, TransformerLens) — {CONDITIONS[condition_name]['label']}\n"
-        f"({N_SEQUENCES} sequences per ρ)",
+        f"({N_SEQUENCES} sequences per ρ, segment_len={SEGMENT_LEN})",
         fontsize=12,
     )
     fig.tight_layout()
@@ -280,72 +312,56 @@ def plot_condition(results, condition_name):
     print(f"  Saved {path}")
 
 
-def model_vocab_size_proxy():
-    """Placeholder — returns total vocabulary for chance-level computation."""
-    # Llama-3.1-8B has 128256 tokens; we use this to set chance baseline
-    return list(range(128256))
-
-
 def plot_comparison(all_results):
-    """Head-to-head comparison across conditions."""
-    if not all(c in all_results for c in ["disjoint", "overlap"]):
+    """
+    3-panel head-to-head across all available conditions.
+
+    Panel 1 — pure ring (ρ=1): baseline learnability per condition.
+               Key question: does semantic prior help (natural) or hurt (permuted)?
+    Panel 2 — mixed (ρ=0.5), grid accuracy: does the ring condition affect
+               how well grid structure is learned under competition?
+    Panel 3 — mixed (ρ=0.5), ring accuracy: the competition signal.
+               Does mixing suppress ring learning, and does semantic prior modulate this?
+    """
+    if len(all_results) < 2:
         return
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
-    colors = {"disjoint": "#1565C0", "overlap": "#E65100"}
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
 
-    # Panel 1: pure ring — does neutral vocab fix the phase transition?
+    # Panel 1: pure ring baseline
     ax = axes[0]
-    for cond in ["disjoint", "overlap"]:
-        _curve_plain(ax, all_results[cond][1.0]["ring"],
-                     colors[cond], CONDITIONS[cond]["label"])
-    ax.set_title("Pure ring (ρ=1): disjoint vs overlap", fontsize=11)
-    ax.set_ylabel("P(next ∈ ring neighbors)")
+    for cond, data in all_results.items():
+        if 1.0 in data:
+            _curve(ax, data[1.0]["ring"], COND_COLORS[cond], CONDITIONS[cond]["label"])
+    _style_ax(ax, "Pure ring (ρ=1): ring accuracy by condition")
+    ax.set_ylabel("P(next ∈ ring neighbors)", fontsize=10)
 
     # Panel 2: mixed, grid accuracy
     ax = axes[1]
-    for cond in ["disjoint", "overlap"]:
-        _curve_plain(ax, all_results[cond][0.5]["grid"],
-                     colors[cond], CONDITIONS[cond]["label"])
-    ax.set_title("Mixed (ρ=0.5): grid accuracy", fontsize=11)
-    ax.set_ylabel("P(next ∈ grid neighbors)")
+    for cond, data in all_results.items():
+        if 0.5 in data:
+            _curve(ax, data[0.5]["grid"], COND_COLORS[cond], CONDITIONS[cond]["label"])
+    _style_ax(ax, "Mixed (ρ=0.5): grid accuracy")
+    ax.set_ylabel("P(next ∈ grid neighbors)", fontsize=10)
 
-    # Panel 3: mixed, ring accuracy — the key competition signal
+    # Panel 3: mixed, ring accuracy (competition signal)
     ax = axes[2]
-    for cond in ["disjoint", "overlap"]:
-        _curve_plain(ax, all_results[cond][0.5]["ring"],
-                     colors[cond], CONDITIONS[cond]["label"])
-    if any(all_results["overlap"][0.5]["shared"].get(L) for L in EVAL_LENGTHS):
-        _curve_plain(ax, all_results["overlap"][0.5]["shared"],
-                     SHARE_COLOR, "Overlap: shared-word positions", ls="--")
-    ax.set_title("Mixed (ρ=0.5): ring accuracy\n(competition signal)", fontsize=11)
-    ax.set_ylabel("P(next ∈ ring neighbors)")
-
-    for ax in axes:
-        ax.set_xlabel("Context length (tokens)", fontsize=10)
-        ax.set_xlim(0, SEQ_LEN + 50)
-        ax.set_ylim(-0.02, 0.55)
-        ax.legend(fontsize=8)
-        ax.grid(True, alpha=0.25)
+    for cond, data in all_results.items():
+        if 0.5 in data:
+            _curve(ax, data[0.5]["ring"], COND_COLORS[cond], CONDITIONS[cond]["label"])
+    _style_ax(ax, "Mixed (ρ=0.5): ring accuracy\n(competition signal)")
+    ax.set_ylabel("P(next ∈ ring neighbors)", fontsize=10)
 
     fig.suptitle(
-        "Vocabulary experiment — disjoint vs overlapping ring words\n"
+        "Vocabulary & semantic prior experiment — all conditions\n"
         "Llama 3.1 8B (base), TransformerLens",
         fontsize=12,
     )
     fig.tight_layout()
-    path = os.path.join(PLOT_DIR, "tl_vocab_comparison.png")
+    path = os.path.join(PLOT_DIR, "tl_all_conditions_comparison.png")
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {path}")
-
-
-def _curve_plain(ax, accs, color, label, ls="-"):
-    lengths = sorted(L for L in EVAL_LENGTHS if accs.get(L))
-    if not lengths:
-        return
-    means = [np.mean(accs[L]) for L in lengths]
-    ax.plot(lengths, means, f"o{ls}", color=color, label=label, lw=2, ms=5)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -353,13 +369,19 @@ def _curve_plain(ax, accs, color, label, ls="-"):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--condition", choices=["disjoint", "overlap", "both"], default="both",
+        "--condition",
+        choices=list(CONDITIONS.keys()) + ["all"],
+        default="all",
+        help="Which condition(s) to run (default: all)",
     )
-    parser.add_argument("--replot", action="store_true")
+    parser.add_argument(
+        "--replot", action="store_true",
+        help="Skip inference, regenerate plots from saved results",
+    )
     args = parser.parse_args()
 
     conditions_to_run = (
-        ["disjoint", "overlap"] if args.condition == "both" else [args.condition]
+        list(CONDITIONS.keys()) if args.condition == "all" else [args.condition]
     )
 
     all_results = {}
@@ -371,11 +393,10 @@ def main():
     else:
         print(f"Loading {MODEL_NAME} via TransformerLens...")
         model = load_model()
-        model.eval()
-        print(f"Model loaded on {model.cfg.device}.")
+        print(f"Model loaded on {model.cfg.device}.\n")
 
         for cond in conditions_to_run:
-            print(f"\n{'='*60}")
+            print(f"{'='*60}")
             print(f"Condition: {cond.upper()}")
             print(f"  {CONDITIONS[cond]['description']}")
             print(f"{'='*60}")
