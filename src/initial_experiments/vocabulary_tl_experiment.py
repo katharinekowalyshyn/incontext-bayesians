@@ -25,7 +25,7 @@ Four conditions:
 
 For each condition, sweeps rho in {0.0, 0.5, 1.0} and measures
 P(next token ∈ valid neighbors) — summed softmax probability over ground-truth
-neighbor tokens — at sampled context lengths up to 1400.
+neighbor tokens — at sampled context lengths up to 2000.
 
 Our contribution: the interleaved mixing approach (rho > 0), where grid and ring
 random-walk segments are concatenated into a single sequence. This tests whether
@@ -60,12 +60,12 @@ from sanity_check import Grid, WORDS as GRID_WORDS, set_seed, make_interleaved_s
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-MODEL_NAME   = "meta-llama/Llama-3.1-8B"
-RHOS         = [0.0, 0.5, 1.0]
-N_SEQUENCES  = 16
-SEQ_LEN      = 1400
-SEGMENT_LEN  = 100
-EVAL_LENGTHS = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400]
+MODEL_NAME       = "meta-llama/Llama-3.1-8B"
+RHOS             = [0.0, 0.5, 1.0]
+SEQ_LEN          = 2000
+SEGMENT_LEN      = 100
+EVAL_LENGTHS     = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400, 1600, 1800, 2000]
+MIN_PLOT_SAMPLES = 8   # eval points with fewer sequences are dropped from plots
 
 DATA_DIR = os.path.join(HERE, "results", "vocabulary_tl")
 PLOT_DIR = os.path.join(HERE, "results")
@@ -151,14 +151,26 @@ def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
         ring_probs   : {L: float}
         shared_probs : {L: float}  (overlap condition only)
     """
-    text   = " " + " ".join(sequence)
-    tokens = model.tokenizer(text, return_tensors="pt").input_ids.to(model.cfg.device)
-    logits = model(tokens)                             # [1, seq_len+1, vocab]
-    probs  = torch.softmax(logits[0, 1:, :], dim=-1)  # [seq_len, vocab] — skip BOS
+    # Build the input sequence directly from first-token IDs so that every word
+    # is exactly one token regardless of its natural tokenization.  This keeps
+    # the token count equal to the word count (plus BOS), avoids n_ctx overflow
+    # for multi-token words like "january", and lets us index probs with L-1.
+    tok_map_all = {**grid_tok, **ring_tok}
+    bos         = model.tokenizer.bos_token_id
+    input_ids   = [bos] + [tok_map_all[w] for w in sequence]
+    n_ctx       = model.cfg.n_ctx
+    if len(input_ids) > n_ctx:
+        input_ids = input_ids[:n_ctx]
+    tokens = torch.tensor([input_ids], dtype=torch.long).to(model.cfg.device)
+    logits = model(tokens)                             # [1, T, vocab]
+    probs  = torch.softmax(logits[0, 1:, :], dim=-1)  # [T-1, vocab] — skip BOS
 
     grid_probs, ring_probs, shared_probs = {}, {}, {}
 
     for L in eval_lengths:
+        if L - 1 >= probs.shape[0]:
+            continue  # sequence was truncated before this eval point; skip
+
         current_word  = sequence[L - 1]
         current_label = labels[L - 1]
 
@@ -185,12 +197,14 @@ def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
 
 # ── Run one (condition, rho) cell ──────────────────────────────────────────────
 
-def run_condition_rho(model, condition_name, rho, n_sequences, eval_lengths,
-                      seed_offset=0):
+def run_condition_rho(model, condition_name, rho, eval_lengths, seed_offset=0):
     ring_words = CONDITIONS[condition_name]["ring_words"]
     is_overlap = CONDITIONS[condition_name]["has_overlap"]
     grid       = Grid()
     ring       = Ring(words=ring_words)
+
+    # Use one sequence per graph node: 16 for pure-grid runs, 12 (ring.n) otherwise.
+    n_sequences = grid.n if rho == 0.0 else ring.n
 
     grid_tok = build_token_map(model, GRID_WORDS)
     ring_tok = build_token_map(model, ring_words)
@@ -264,7 +278,7 @@ COND_COLORS = {
 
 
 def _curve(ax, accs, color, label, ls="-"):
-    lengths = sorted(L for L in EVAL_LENGTHS if accs.get(L))
+    lengths = sorted(L for L in EVAL_LENGTHS if len(accs.get(L, [])) >= MIN_PLOT_SAMPLES)
     if not lengths:
         return
     means = [np.mean(accs[L]) for L in lengths]
@@ -302,7 +316,7 @@ def plot_condition(results, condition_name):
     axes[0].set_ylabel("P(next token ∈ valid neighbors)", fontsize=10)
     fig.suptitle(
         f"Llama 3.1 8B (base, TransformerLens) — {CONDITIONS[condition_name]['label']}\n"
-        f"({N_SEQUENCES} sequences per ρ, segment_len={SEGMENT_LEN})",
+        f"(16 seq ρ=0 / 12 seq ρ>0, segment_len={SEGMENT_LEN})",
         fontsize=12,
     )
     fig.tight_layout()
@@ -403,10 +417,11 @@ def main():
 
             cond_results = {}
             for i, rho in enumerate(RHOS):
+                n_seq = 16 if rho == 0.0 else 12
                 print(f"\n  [{i+1}/{len(RHOS)}] ρ={rho}  "
-                      f"({N_SEQUENCES} sequences × {len(EVAL_LENGTHS)} eval points)")
+                      f"({n_seq} sequences × {len(EVAL_LENGTHS)} eval points)")
                 grid_accs, ring_accs, shared_accs = run_condition_rho(
-                    model, cond, rho, N_SEQUENCES, EVAL_LENGTHS, seed_offset=i,
+                    model, cond, rho, EVAL_LENGTHS, seed_offset=i,
                 )
                 cond_results[rho] = {
                     "grid": grid_accs,

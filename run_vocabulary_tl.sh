@@ -15,8 +15,7 @@ LOG="vocabulary_tl_experiment.log"
 source /home/katie/miniconda3/etc/profile.d/conda.sh
 conda activate incontext-bayesians
 
-nohup python src/initial_experiments/vocabulary_tl_experiment.py \
-    --condition "$CONDITION" \
+nohup python src/initial_experiments/vocabulary_tl_experiment.py --condition all\
     > "$LOG" 2>&1 &
 
 echo "Started PID $! (condition: $CONDITION)"
