@@ -1,15 +1,17 @@
 """
 mixing_experiment.py
 
-Measures Llama 3.1 8B (base) accuracy on competing graph structures via Ollama.
+Measures Llama 3.1 8B (base) performance on competing graph structures via
+TransformerLens (single forward pass per sequence).
 
 For rho in {0.0, 0.5, 1.0}:
   - rho=0.0: pure 4x4 grid walks
   - rho=0.5: interleaved grid + ring segments (across-sequence mixing)
   - rho=1.0: pure 12-node ring (months of year) walks
 
-At each sampled context length, we pass the prefix to the model and check
-whether its greedy next-token prediction is a valid graph neighbor.
+At each sampled context length, we measure:
+    P(next token in valid neighbors)
+as the summed softmax probability over ground-truth neighbor tokens.
 
 Usage:
     python initial_experiments/mixing_experiment.py
@@ -19,134 +21,128 @@ Usage:
 import os
 import sys
 import json
-import time
 import argparse
 
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-import requests
-from tqdm import tqdm
+from transformer_lens import HookedTransformer
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from graphs import Ring, MONTHS
 from sanity_check import Grid, WORDS, set_seed, make_interleaved_sequence
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-
-OLLAMA_URL = "http://localhost:11434"
-MODEL = "llama3.1:8b-text-q4_0"
+MODEL_NAME = "meta-llama/Llama-3.1-8B"
 
 RHOS = [0.0, 0.5, 1.0]
 N_SEQUENCES = 8          # sequences per rho value
 SEQ_LEN = 1400           # total tokens per sequence (matches Park et al.)
 SEGMENT_LEN = 100        # tokens per segment in mixed sequences
 EVAL_LENGTHS = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400]
+Y_AXIS_LIMITS = (0.0, 1.0)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "results", "mixing_experiment")
 PLOT_DIR = os.path.join(os.path.dirname(__file__), "results")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(PLOT_DIR, exist_ok=True)
 
-# ── Ollama interface ────────────────────────────────────────────────────────────
+# ── TransformerLens helpers ────────────────────────────────────────────────────
 
-def check_ollama():
-    try:
-        r = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
-        r.raise_for_status()
-        models = [m["name"] for m in r.json().get("models", [])]
-        print(f"Ollama running. Available models: {models}")
-        if MODEL not in models:
-            print(f"\nERROR: '{MODEL}' not found. Pull it with:\n  ollama pull {MODEL}\n")
-            return False
-        return True
-    except Exception as e:
-        print(f"Ollama not reachable at {OLLAMA_URL}: {e}")
-        return False
+def load_model():
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = HookedTransformer.from_pretrained_no_processing(
+        MODEL_NAME,
+        device=device,
+    )
+    model.eval()
+    return model
 
 
-def query_model(prefix_text, valid_neighbors, retries=2):
+def build_token_map(model, words):
+    """Return {word: token_id}; warns if any word splits into multiple tokens."""
+    mapping = {}
+    multi_token = []
+    for w in words:
+        ids = model.tokenizer.encode(" " + w, add_special_tokens=False)
+        if len(ids) == 1:
+            mapping[w] = ids[0]
+        else:
+            multi_token.append((w, ids))
+            mapping[w] = ids[0]
+    if multi_token:
+        print(f"  WARNING: multi-token words (using first token): {multi_token}")
+    return mapping
+
+
+@torch.no_grad()
+def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths, grid_tok, ring_tok):
     """
-    Feed prefix_text to the base LM, get one greedy token, check if valid.
-
+    Single forward pass on one sequence.
     Returns:
-        1.0  if generated token is a valid graph neighbor
-        0.0  if not
-        None if the query failed
+        grid_probs: {L: float}
+        ring_probs: {L: float}
     """
-    payload = {
-        "model": MODEL,
-        "prompt": prefix_text,
-        "stream": False,
-        "raw": True,          # no chat template — pure next-token prediction
-        "options": {
-            "temperature": 0,
-            "num_predict": 1,
-            "num_ctx": 2048,
-            "seed": 0,
-        },
-    }
-    for attempt in range(retries + 1):
-        try:
-            r = requests.post(
-                f"{OLLAMA_URL}/api/generate",
-                json=payload,
-                timeout=120,
-            )
-            r.raise_for_status()
-            generated = r.json()["response"].strip().lower()
-            return float(generated in valid_neighbors)
-        except requests.exceptions.Timeout:
-            if attempt < retries:
-                time.sleep(2)
-            else:
-                return None
-        except Exception as e:
-            if attempt < retries:
-                time.sleep(1)
-            else:
-                print(f"  [query error: {e}]", end="", flush=True)
-                return None
+    tok_map_all = {**grid_tok, **ring_tok}
+    bos = model.tokenizer.bos_token_id
+    input_ids = [bos] + [tok_map_all[w] for w in sequence]
+    n_ctx = model.cfg.n_ctx
+    if len(input_ids) > n_ctx:
+        input_ids = input_ids[:n_ctx]
+
+    tokens = torch.tensor([input_ids], dtype=torch.long).to(model.cfg.device)
+    logits = model(tokens)
+    probs = torch.softmax(logits[0, 1:, :], dim=-1)  # skip BOS
+
+    grid_probs, ring_probs = {}, {}
+    for L in eval_lengths:
+        if L - 1 >= probs.shape[0]:
+            continue
+
+        current_word = sequence[L - 1]
+        current_label = labels[L - 1]
+        if current_label == "grid":
+            valid = grid.get_valid_next_words(current_word)
+            tok_map = grid_tok
+        else:
+            valid = ring.get_valid_next_words(current_word)
+            tok_map = ring_tok
+
+        p = sum(probs[L - 1, tok_map[nb]].item() for nb in valid if nb in tok_map)
+        if current_label == "grid":
+            grid_probs[L] = p
+        else:
+            ring_probs[L] = p
+
+    return grid_probs, ring_probs
 
 
 # ── Experiment ─────────────────────────────────────────────────────────────────
 
-def run_rho(grid, ring, rho, n_sequences, eval_lengths, seed_offset=0):
+def run_rho(model, grid, ring, rho, n_sequences, eval_lengths, seed_offset=0):
     """
     Run all sequences for one mixture ratio.
 
     Returns:
-        grid_accs : {length: [0.0 or 1.0, ...]}  — positions labeled 'grid'
-        ring_accs : {length: [0.0 or 1.0, ...]}  — positions labeled 'ring'
+        grid_accs : {length: [float, ...]}  — P(next token in valid grid neighbors)
+        ring_accs : {length: [float, ...]}  — P(next token in valid ring neighbors)
     """
     grid_accs = {L: [] for L in eval_lengths}
     ring_accs = {L: [] for L in eval_lengths}
+    grid_tok = build_token_map(model, grid.words)
+    ring_tok = build_token_map(model, ring.words)
 
     for seq_i in range(n_sequences):
         set_seed(42 + seq_i + seed_offset * 100)
         seq, labels = make_interleaved_sequence(grid, ring, SEQ_LEN, rho, SEGMENT_LEN)
-
-        for L in tqdm(
-            sorted(eval_lengths),
-            desc=f"  ρ={rho} seq {seq_i+1}/{n_sequences}",
-            leave=False,
-        ):
-            current_word = seq[L - 1]
-            current_label = labels[L - 1]
-
-            if current_label == "grid":
-                valid = grid.get_valid_next_words(current_word)
-            else:
-                valid = ring.get_valid_next_words(current_word)
-
-            prefix_text = " " + " ".join(seq[:L])
-            acc = query_model(prefix_text, valid)
-
-            if acc is not None:
-                if current_label == "grid":
-                    grid_accs[L].append(acc)
-                else:
-                    ring_accs[L].append(acc)
+        gp, rp = sequence_neighbor_probs(
+            model, grid, ring, seq, labels, eval_lengths, grid_tok, ring_tok
+        )
+        for L, p in gp.items():
+            grid_accs[L].append(p)
+        for L, p in rp.items():
+            ring_accs[L].append(p)
 
     return grid_accs, ring_accs
 
@@ -175,7 +171,7 @@ def _plot_curve(ax, accs, color, label, eval_lengths):
 
 
 def plot_per_rho(all_results):
-    """Three-panel plot: one subplot per rho, grid vs ring accuracy."""
+    """Three-panel plot: one subplot per rho, grid vs ring neighbor probability."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), sharey=True)
 
     for ax, rho in zip(axes, [0.0, 0.5, 1.0]):
@@ -183,8 +179,7 @@ def plot_per_rho(all_results):
         _plot_curve(ax, data["grid"], GRID_COLOR, "Grid neighbors", EVAL_LENGTHS)
         _plot_curve(ax, data["ring"], RING_COLOR, "Ring neighbors", EVAL_LENGTHS)
 
-        # Chance baselines: avg_degree / vocab (greedy, LM picks from full vocab,
-        # but these reference lines show uniform-over-vocab-words baselines)
+        # Reference baselines if mass were uniform over each graph vocabulary.
         ax.axhline(3 / 16, color=GRID_COLOR, lw=0.9, ls="--", alpha=0.45,
                    label="Grid chance (3/16)")
         ax.axhline(2 / 12, color=RING_COLOR, lw=0.9, ls="--", alpha=0.45,
@@ -193,14 +188,14 @@ def plot_per_rho(all_results):
         ax.set_xlabel("Context length (tokens)", fontsize=10)
         ax.set_title(RHO_LABEL[rho], fontsize=11)
         ax.set_xlim(0, SEQ_LEN + 50)
-        ax.set_ylim(-0.05, 1.05)
+        ax.set_ylim(*Y_AXIS_LIMITS)
         ax.legend(fontsize=8, framealpha=0.85)
         ax.grid(True, alpha=0.25)
         ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{int(x)}"))
 
-    axes[0].set_ylabel("P(next token ∈ valid neighbors)  [greedy]", fontsize=10)
+    axes[0].set_ylabel("P(next token in valid neighbors)", fontsize=10)
     fig.suptitle(
-        "Llama 3.1 8B (base) — accuracy on competing graph structures\n"
+        "Llama 3.1 8B (base, TransformerLens) — competing graph structures\n"
         f"({N_SEQUENCES} sequences per ρ, segment_len={SEGMENT_LEN})",
         fontsize=12,
     )
@@ -212,7 +207,7 @@ def plot_per_rho(all_results):
 
 
 def plot_summary(all_results):
-    """Two-panel summary: grid accuracy and ring accuracy, all rhos overlaid."""
+    """Two-panel summary: grid and ring neighbor probability, all rhos overlaid."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 4.5))
 
     for ax, graph_type, color_base in zip(
@@ -235,15 +230,15 @@ def plot_summary(all_results):
         ax.axhline(chance, color="gray", lw=0.9, ls="--", alpha=0.5,
                    label=f"Chance ({chance:.2f})")
         ax.set_xlabel("Context length (tokens)", fontsize=10)
-        ax.set_ylabel("Greedy accuracy", fontsize=10)
-        ax.set_title(f"{graph_type.capitalize()} neighbor accuracy — effect of ρ", fontsize=11)
+        ax.set_ylabel("P(next token in valid neighbors)", fontsize=10)
+        ax.set_title(f"{graph_type.capitalize()} neighbor probability — effect of ρ", fontsize=11)
         ax.set_xlim(0, SEQ_LEN + 50)
-        ax.set_ylim(-0.05, 1.05)
+        ax.set_ylim(*Y_AXIS_LIMITS)
         ax.legend(fontsize=9, framealpha=0.85)
         ax.grid(True, alpha=0.25)
 
     fig.suptitle(
-        "Llama 3.1 8B (base) — does mixing suppress structure learning?",
+        "Llama 3.1 8B (base, TransformerLens) — does mixing suppress structure learning?",
         fontsize=12,
     )
     fig.tight_layout()
@@ -290,7 +285,7 @@ def main():
     cache_path = os.path.join(DATA_DIR, "raw_results.json")
 
     grid = Grid()
-    ring = Ring()
+    ring = Ring(words=MONTHS)
 
     if args.replot:
         if not os.path.exists(cache_path):
@@ -299,8 +294,9 @@ def main():
         print(f"Loading results from {cache_path}")
         all_results = load_results(cache_path)
     else:
-        if not check_ollama():
-            sys.exit(1)
+        print(f"Loading {MODEL_NAME} via TransformerLens...")
+        model = load_model()
+        print(f"Model loaded on {model.cfg.device}.")
 
         set_seed(42)
 
@@ -308,8 +304,9 @@ def main():
         for i, rho in enumerate(RHOS):
             print(f"\n[{i+1}/{len(RHOS)}] Running ρ={rho}  "
                   f"({N_SEQUENCES} sequences × {len(EVAL_LENGTHS)} eval points)")
-            grid_accs, ring_accs = run_rho(grid, ring, rho, N_SEQUENCES, EVAL_LENGTHS,
-                                           seed_offset=i)
+            grid_accs, ring_accs = run_rho(
+                model, grid, ring, rho, N_SEQUENCES, EVAL_LENGTHS, seed_offset=i
+            )
             all_results[rho] = {"grid": grid_accs, "ring": ring_accs}
 
             # Save after each rho so we don't lose work if interrupted

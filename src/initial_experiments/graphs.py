@@ -17,9 +17,9 @@ import numpy as np
 # Natural ordering: the in-context ring matches the model's semantic prior
 # (Jan→Feb→...→Dec). Expect fast, clean learning because semantic prior helps.
 MONTHS = [
-    "january", "february", "march", "april",
-    "may", "june", "july", "august",
-    "september", "october", "november", "december",
+    "January", "February", "March", "April",
+    "May", "June", "July", "August",
+    "September", "October", "November", "December",
 ]
 
 # Permuted ordering: interleave months offset by 6 so that no two naturally-
@@ -29,9 +29,9 @@ MONTHS = [
 # This creates a direct conflict between the model's semantic prior and the
 # structure defined by the random walk.
 MONTHS_PERMUTED = [
-    "january", "august", "march", "october",
-    "may", "december", "july", "february",
-    "september", "april", "november", "june",
+    "January", "August", "March", "October",
+    "May", "December", "July", "February",
+    "September", "April", "November", "June",
 ]
 
 MONTH_COLORS_NATURAL = [
@@ -50,8 +50,8 @@ MONTH_TO_COLOR = {m: c for m, c in zip(MONTHS, MONTH_COLORS_NATURAL)}
 
 RING_WORDS = [
     "candle", "brick", "fern", "lamp",
-    "dust",   "wool",  "reef", "thorn",
-    "cask",   "flint", "marsh", "prism",
+    "dust",   "wool",  "reef", "vine",
+    "jar",    "chalk", "marsh", "prism",
 ]
 
 RING_COLORS = [
@@ -76,13 +76,13 @@ RING_WORD_TO_COLOR = {w: c for w, c in zip(RING_WORDS, RING_COLORS)}
 #   box   → grid row 2, col 0  (neighbors: house, sand, rock)
 #
 # Ring positions of shared words (defined by RING_WORDS_OVERLAP order below):
-#   rock  → between thorn and sand
+#   rock  → between vine and sand
 #   sand  → between rock and box
 #   box   → between sand and prism
 
 RING_WORDS_OVERLAP = [
     "candle", "brick", "fern", "lamp",
-    "dust",   "wool",  "reef", "thorn",
+    "dust",   "wool",  "reef", "vine",
     "rock",   "sand",  "box",  "prism",
 ]
 

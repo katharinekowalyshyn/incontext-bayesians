@@ -21,7 +21,7 @@ Three initial experiments were run on Llama 3.1 8B (base) to test whether the mo
 
 ## Experiment 2: Vocabulary Experiment — Disjoint Vocab (TransformerLens)
 
-**Setup:** Replaces months with fully neutral ring words (candle, brick, fern, lamp, dust, wool, reef, thorn, cask, flint, marsh, prism). Uses TransformerLens for a single forward pass per sequence, measuring summed probability over valid neighbors rather than greedy accuracy. 16 sequences per condition.
+**Setup:** Replaces months with fully neutral ring words (candle, brick, fern, lamp, dust, wool, reef, vine, jar, chalk, marsh, prism). Uses TransformerLens for a single forward pass per sequence, measuring summed probability over valid neighbors rather than greedy accuracy. 16 sequences per condition.
 
 **Results:**
 - ρ=0 (pure grid): Grid neighbor probability rises cleanly from ~0.4 at 50 tokens to ~0.5 by 200–300 tokens.
@@ -67,3 +67,22 @@ Three initial experiments were run on Llama 3.1 8B (base) to test whether the mo
 - Investigate why ring learning is weaker and noisier than grid learning (topology difference, degree, sequence statistics).
 - Consider testing alternative ring structures or sequence lengths to establish a clean ring baseline.
 - Once both structures learn reliably in isolation, re-run the mixing experiment to isolate true interference effects.
+
+---
+
+## Plotting Note (Apr 15, 2026)
+
+- TransformerLens vocabulary figures now use a fixed y-axis range of **0.0 to 1.0** for all panels, so conditions are directly comparable across runs.
+- This is enforced in `src/initial_experiments/vocabulary_tl_experiment.py` via `Y_AXIS_LIMITS = (0.0, 1.0)`.
+- Re-generate figures from saved JSON with:
+  `python src/initial_experiments/vocabulary_tl_experiment.py --replot`
+
+---
+
+## Update: Mixing Experiment Migrated to TransformerLens (Apr 15, 2026)
+
+- `src/initial_experiments/mixing_experiment.py` now uses TransformerLens (same metric family as the vocabulary TL experiments), not Ollama greedy probing.
+- Metric is now **P(next token in valid neighbors)** computed by summing softmax probability over valid neighbor tokens.
+- Plot y-axis is fixed to **0.0 to 1.0** for consistent comparison across runs.
+- Re-generate mixing plots from cached JSON with:
+  `python src/initial_experiments/mixing_experiment.py --replot`

@@ -66,6 +66,7 @@ SEQ_LEN          = 2000
 SEGMENT_LEN      = 100
 EVAL_LENGTHS     = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400, 1600, 1800, 2000]
 MIN_PLOT_SAMPLES = 8   # eval points with fewer sequences are dropped from plots
+Y_AXIS_LIMITS    = (0.0, 1.0)
 
 DATA_DIR = os.path.join(HERE, "results", "vocabulary_tl")
 PLOT_DIR = os.path.join(HERE, "results")
@@ -151,10 +152,9 @@ def sequence_neighbor_probs(model, grid, ring, sequence, labels, eval_lengths,
         ring_probs   : {L: float}
         shared_probs : {L: float}  (overlap condition only)
     """
-    # Build the input sequence directly from first-token IDs so that every word
-    # is exactly one token regardless of its natural tokenization.  This keeps
-    # the token count equal to the word count (plus BOS), avoids n_ctx overflow
-    # for multi-token words like "january", and lets us index probs with L-1.
+    # Build the input sequence directly from token IDs.  All vocabulary words
+    # are verified single-token, so the token count equals the word count (plus
+    # BOS) and we can index probs with L-1.
     tok_map_all = {**grid_tok, **ring_tok}
     bos         = model.tokenizer.bos_token_id
     input_ids   = [bos] + [tok_map_all[w] for w in sequence]
@@ -204,7 +204,7 @@ def run_condition_rho(model, condition_name, rho, eval_lengths, seed_offset=0):
     ring       = Ring(words=ring_words)
 
     # Use one sequence per graph node: 16 for pure-grid runs, 12 (ring.n) otherwise.
-    n_sequences = grid.n if rho == 0.0 else ring.n
+    n_sequences = len(grid.words) if rho == 0.0 else ring.n
 
     grid_tok = build_token_map(model, GRID_WORDS)
     ring_tok = build_token_map(model, ring_words)
@@ -296,7 +296,7 @@ def _style_ax(ax, title):
     ax.set_xlabel("Context length (tokens)", fontsize=10)
     ax.set_title(title, fontsize=11)
     ax.set_xlim(0, SEQ_LEN + 50)
-    ax.set_ylim(-0.02, 0.65)
+    ax.set_ylim(*Y_AXIS_LIMITS)
     ax.legend(fontsize=8, framealpha=0.85)
     ax.grid(True, alpha=0.25)
 
