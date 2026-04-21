@@ -48,10 +48,17 @@ MONTH_TO_COLOR = {m: c for m, c in zip(MONTHS, MONTH_COLORS_NATURAL)}
 # No semantic ordering or associations. All words are concrete nouns with no
 # obvious sequential relationship to each other or to the grid vocabulary.
 
+# RING_WORDS = [
+#     "candle", "brick", "fern", "lamp",
+#     "dust",   "wool",  "reef", "vine",
+#     "jar",    "chalk", "marsh", "prism",
+# ]
+
 RING_WORDS = [
-    "candle", "brick", "fern", "lamp",
-    "dust",   "wool",  "reef", "vine",
-    "jar",    "chalk", "marsh", "prism",
+    "apple", "bird", "car", "egg",
+    "house", "milk", "plane", "opera",
+    "box", "sand", "sun", "mango",
+    "rock", "math", "code", "phone",
 ]
 
 RING_COLORS = [

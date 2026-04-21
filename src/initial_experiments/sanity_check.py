@@ -41,6 +41,8 @@ WORD_TO_COLOR = {w: c for w, c in zip(WORDS, COLORS)}
 
 class Grid:
     def __init__(self, words=WORDS, rows=4, cols=4):
+        words = words.copy()
+        random.shuffle(words)
         self.words = words
         self.rows = rows
         self.cols = cols
