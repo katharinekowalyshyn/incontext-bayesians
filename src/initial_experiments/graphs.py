@@ -144,3 +144,29 @@ class Ring:
             A[i, (i - 1) % self.n] = 1
             A[i, (i + 1) % self.n] = 1
         return A
+
+class Hamiltonian:
+    """Hamiltonian graph.
+    
+    - defined to be a complete graph with n nodes, where each node is connected to every other node.
+    - each node is a word in the vocabulary.
+    
+    """
+    def __init__(self, words=RING_WORDS):
+        self.words = list(words)
+        self.n = len(self.words)
+        self.word_to_idx = {w: i for i, w in enumerate(self.words)}
+
+    def get_valid_next_words(self, word):
+        idx = self.word_to_idx[word]
+        return [self.words[(idx - 1) % self.n], self.words[(idx + 1) % self.n]] 
+
+    def generate_sequence(self, seq_len, start_word=None):
+        if start_word is None:
+            start_word = np.random.choice(self.words)
+        word = start_word
+        sequence = [word]
+        while len(sequence) < seq_len:
+            word = np.random.choice(self.get_valid_next_words(word))
+            sequence.append(word)
+        return sequence
