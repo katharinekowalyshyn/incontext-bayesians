@@ -6,17 +6,20 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
-import torch
-
 if __package__ in {None, ""}:
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from src.secondary_experiments.config import DEFAULT_CONFIG
-    from src.secondary_experiments.experiment import run_baseline_only, run_with_llm, save_json
+    from src.secondary_experiments.experiment import (
+        load_json,
+        run_baseline_only,
+        run_with_llm,
+        save_json,
+    )
 else:
     from .config import DEFAULT_CONFIG
-    from .experiment import run_baseline_only, run_with_llm, save_json
+    from .experiment import load_json, run_baseline_only, run_with_llm, save_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +40,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--epsilon", type=float, default=DEFAULT_CONFIG.epsilon)
     parser.add_argument("--alpha", type=float, default=DEFAULT_CONFIG.alpha)
+    parser.add_argument("--edge-prior-prob", type=float, default=DEFAULT_CONFIG.edge_prior_prob)
+    parser.add_argument("--edge-prior-strength", type=float, default=DEFAULT_CONFIG.edge_prior_strength)
+    parser.add_argument("--edge-alpha", type=float, default=DEFAULT_CONFIG.edge_alpha)
+    parser.add_argument("--semantic-shift-eps", type=float, default=DEFAULT_CONFIG.semantic_shift_eps)
     parser.add_argument("--seq-len", type=int, default=DEFAULT_CONFIG.seq_len)
     parser.add_argument("--eval-lengths", type=int, nargs="+", default=list(DEFAULT_CONFIG.eval_lengths))
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_CONFIG.seeds))
@@ -71,18 +78,17 @@ def parse_mix_spec(spec: str | None) -> tuple[tuple[str, float], ...] | None:
 def main() -> None:
     args = parse_args()
     out_dir = Path(args.out_dir)
-    _dtype_map = {
-        "float16": torch.float16,
-        "bfloat16": torch.bfloat16,
-        "float32": torch.float32,
-    }
     config = replace(
         DEFAULT_CONFIG,
         model_name=args.model,
         device=args.device,
-        dtype=_dtype_map[args.dtype],
+        dtype=args.dtype,
         epsilon=args.epsilon,
         alpha=args.alpha,
+        edge_prior_prob=args.edge_prior_prob,
+        edge_prior_strength=args.edge_prior_strength,
+        edge_alpha=args.edge_alpha,
+        semantic_shift_eps=args.semantic_shift_eps,
         seq_len=args.seq_len,
         eval_lengths=tuple(args.eval_lengths),
         seeds=tuple(args.seeds),
@@ -122,7 +128,14 @@ def main() -> None:
         else:
             from .plotting import make_all_plots
 
-        paths = make_all_plots(rows, out_dir)
+        plot_rows = rows
+        if args.skip_llm:
+            cached_llm = out_dir / "llm_results.json"
+            if cached_llm.exists():
+                print(f"Using existing LLM results for plotting: {cached_llm}")
+                plot_rows = load_json(cached_llm)
+
+        paths = make_all_plots(plot_rows, out_dir)
         for path in paths:
             print(f"Saved {path}")
 

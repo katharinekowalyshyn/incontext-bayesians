@@ -18,6 +18,13 @@ GRAPH_COLORS = {
     "uniform": "#616161",
 }
 
+BASELINE_STYLES = {
+    "bayes": ("#1976D2", "Bayes"),
+    "edge_learner": ("#2E7D32", "Edge learner"),
+    "cache": ("#C62828", "Cache"),
+    "semantic_prior": ("#6A1B9A", "Semantic prior"),
+}
+
 
 def _group_rows(rows: Sequence[dict]):
     grouped = defaultdict(list)
@@ -115,16 +122,19 @@ def plot_llm_metric_comparison(
     out_path.mkdir(parents=True, exist_ok=True)
 
     for true_graph, graph_rows in _group_rows(rows).items():
-        bayes_key = f"{metric_prefix}_llm_bayes"
-        cache_key = f"{metric_prefix}_llm_cache"
-        lengths_b, means_b, sems_b = _mean_sem_by_length(graph_rows, bayes_key)
-        lengths_c, means_c, sems_c = _mean_sem_by_length(graph_rows, cache_key)
-        if not lengths_b or not lengths_c:
+        series = {}
+        for baseline in BASELINE_STYLES:
+            key = f"{metric_prefix}_llm_{baseline}"
+            lengths, means, sems = _mean_sem_by_length(graph_rows, key)
+            if lengths:
+                series[baseline] = (lengths, means, sems)
+        if not series:
             continue
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        _plot_mean_sem(ax, lengths_b, means_b, sems_b, color="#1976D2", label="Bayes")
-        _plot_mean_sem(ax, lengths_c, means_c, sems_c, color="#C62828", label="Cache")
+        for baseline, (lengths, means, sems) in series.items():
+            color, label = BASELINE_STYLES[baseline]
+            _plot_mean_sem(ax, lengths, means, sems, color=color, label=label)
         ax.set_xscale("log")
         ax.set_xlabel("Context length")
         ax.set_ylabel(metric_prefix.upper())
@@ -148,16 +158,19 @@ def plot_llm_correlation_comparison(rows: Sequence[dict], out_dir: str | Path) -
     out_path.mkdir(parents=True, exist_ok=True)
 
     for true_graph, graph_rows in _group_rows(rows).items():
-        lengths_b, means_b, sems_b = _mean_sem_by_length(graph_rows, "corr_llm_bayes")
-        lengths_c, means_c, sems_c = _mean_sem_by_length(graph_rows, "corr_llm_cache")
-        if not lengths_b and not lengths_c:
+        series = {}
+        for baseline in BASELINE_STYLES:
+            key = f"corr_llm_{baseline}"
+            lengths, means, sems = _mean_sem_by_length(graph_rows, key)
+            if lengths:
+                series[baseline] = (lengths, means, sems)
+        if not series:
             continue
 
         fig, ax = plt.subplots(figsize=(8, 5))
-        if lengths_b:
-            _plot_mean_sem(ax, lengths_b, means_b, sems_b, color="#1976D2", label="Bayes")
-        if lengths_c:
-            _plot_mean_sem(ax, lengths_c, means_c, sems_c, color="#C62828", label="Cache")
+        for baseline, (lengths, means, sems) in series.items():
+            color, label = BASELINE_STYLES[baseline]
+            _plot_mean_sem(ax, lengths, means, sems, color=color, label=label)
         ax.axhline(0.0, color="gray", lw=0.8, alpha=0.6)
         ax.set_xscale("log")
         ax.set_ylim(-1.02, 1.02)
@@ -186,6 +199,7 @@ def plot_neighbor_probability_comparison(rows: Sequence[dict], out_dir: str | Pa
         lengths_l, means_l, sems_l = _mean_sem_by_length(graph_rows, "llm_neighbor_prob")
         lengths_b, means_b, sems_b = _mean_sem_by_length(graph_rows, "bayes_neighbor_prob")
         lengths_c, means_c, sems_c = _mean_sem_by_length(graph_rows, "cache_neighbor_prob")
+        lengths_e, means_e, sems_e = _mean_sem_by_length(graph_rows, "edge_learner_neighbor_prob")
         if not lengths_b or not lengths_c:
             continue
 
@@ -193,6 +207,8 @@ def plot_neighbor_probability_comparison(rows: Sequence[dict], out_dir: str | Pa
         if lengths_l:
             _plot_mean_sem(ax, lengths_l, means_l, sems_l, color="black", label="LLM")
         _plot_mean_sem(ax, lengths_b, means_b, sems_b, color="#1976D2", label="Bayes")
+        if lengths_e:
+            _plot_mean_sem(ax, lengths_e, means_e, sems_e, color="#2E7D32", label="Edge learner")
         _plot_mean_sem(ax, lengths_c, means_c, sems_c, color="#C62828", label="Cache")
         ax.set_xscale("log")
         ax.set_ylim(0, 1.02)
@@ -240,6 +256,46 @@ def plot_llm_vocab_mass(rows: Sequence[dict], out_dir: str | Path) -> list[Path]
     return out
 
 
+def plot_closest_baseline(rows: Sequence[dict], out_dir: str | Path) -> list[Path]:
+    """Plot fraction of seeds closest to each baseline by KL at each context length."""
+
+    out = []
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    for true_graph, graph_rows in _group_rows(rows).items():
+        labels_by_length = defaultdict(list)
+        for row in graph_rows:
+            label = row.get("closest_baseline_kl")
+            if label is not None:
+                labels_by_length[int(row["context_length"])].append(label)
+        if not labels_by_length:
+            continue
+
+        lengths = sorted(labels_by_length)
+        fig, ax = plt.subplots(figsize=(8, 5))
+        for baseline, (color, label) in BASELINE_STYLES.items():
+            frac = [
+                labels_by_length[L].count(baseline) / len(labels_by_length[L])
+                for L in lengths
+            ]
+            ax.plot(lengths, frac, "o-", lw=2, ms=4, color=color, label=label)
+        ax.set_xscale("log")
+        ax.set_ylim(0, 1.02)
+        ax.set_xlabel("Context length")
+        ax.set_ylabel("Fraction closest by KL")
+        ax.set_title(f"Closest baseline by KL: true {true_graph}")
+        ax.grid(True, alpha=0.25)
+        ax.legend()
+        fig.tight_layout()
+        path = out_path / f"closest_baseline_kl_{true_graph}.png"
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        out.append(path)
+
+    return out
+
+
 def make_all_plots(rows: Sequence[dict], out_dir: str | Path) -> list[Path]:
     paths = []
     print("Generating Bayesian posterior plots...")
@@ -254,4 +310,6 @@ def make_all_plots(rows: Sequence[dict], out_dir: str | Path) -> list[Path]:
     paths.extend(plot_llm_metric_comparison(rows, out_dir, "mse"))
     print("Generating correlation-to-LLM plots...")
     paths.extend(plot_llm_correlation_comparison(rows, out_dir))
+    print("Generating closest-baseline plots...")
+    paths.extend(plot_closest_baseline(rows, out_dir))
     return paths
