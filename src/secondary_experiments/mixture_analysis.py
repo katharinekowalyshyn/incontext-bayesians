@@ -10,6 +10,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
+from .graphs import build_candidate_graphs
 from .metrics import kl_divergence
 
 
@@ -328,6 +329,105 @@ def plot_kl_comparison(fit_rows: Sequence[dict], out_path: str | Path) -> Path:
     return out
 
 
+def _mean_sem(values: Sequence[float]) -> tuple[float, float]:
+    arr = np.asarray(values, dtype=float)
+    mean = float(arr.mean())
+    sem = float(arr.std(ddof=1) / np.sqrt(len(arr))) if len(arr) > 1 else 0.0
+    return mean, sem
+
+
+def _neighbor_mass(distribution: np.ndarray, words: Sequence[str], row: Mapping) -> float | None:
+    source_graph = row.get("source_graph") or row.get("true_graph")
+    graphs = build_candidate_graphs(words)
+    if source_graph not in graphs:
+        return None
+    current_word = row.get("current_word")
+    if current_word is None:
+        return None
+    word_to_idx = {word: i for i, word in enumerate(words)}
+    return float(sum(distribution[word_to_idx[word]] for word in graphs[source_graph].get_valid_next_words(current_word)))
+
+
+def plot_mixture_neighbor_fit(
+    rows: Sequence[dict],
+    words: Sequence[str],
+    fit_rows: Sequence[dict],
+    out_path: str | Path,
+) -> Path:
+    """Plot how the fitted mixture tracks the LLM neighbor-probability curve."""
+
+    weights_by_length = {
+        int(row["context_length"]): np.array(
+            [row["weights"][name] for name, _ in BASELINES],
+            dtype=float,
+        )
+        for row in fit_rows
+    }
+    grouped = defaultdict(lambda: {"llm": [], "mixture": []})
+
+    for row in rows:
+        L = int(row["context_length"])
+        if L not in weights_by_length:
+            continue
+        llm = _dist_from_row(row, "llm_distribution", words)
+        baselines = np.stack([_dist_from_row(row, key, words) for _, key in BASELINES])
+        mixture = np.einsum("k,kv->v", weights_by_length[L], baselines)
+        llm_mass = _neighbor_mass(llm, words, row)
+        mixture_mass = _neighbor_mass(mixture, words, row)
+        if llm_mass is None or mixture_mass is None:
+            continue
+        grouped[L]["llm"].append(llm_mass)
+        grouped[L]["mixture"].append(mixture_mass)
+
+    if not grouped:
+        raise ValueError("Could not compute neighbor curve; rows need current_word and source_graph/true_graph.")
+
+    lengths = sorted(grouped)
+    llm_mean, llm_sem, mix_mean, mix_sem = [], [], [], []
+    for L in lengths:
+        m, s = _mean_sem(grouped[L]["llm"])
+        llm_mean.append(m)
+        llm_sem.append(s)
+        m, s = _mean_sem(grouped[L]["mixture"])
+        mix_mean.append(m)
+        mix_sem.append(s)
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(lengths, llm_mean, "o-", lw=2.5, ms=4, color="#111111", label="LLM")
+    if any(s > 0 for s in llm_sem):
+        ax.fill_between(
+            lengths,
+            np.asarray(llm_mean) - np.asarray(llm_sem),
+            np.asarray(llm_mean) + np.asarray(llm_sem),
+            color="#111111",
+            alpha=0.14,
+            linewidth=0,
+        )
+    ax.plot(lengths, mix_mean, "o-", lw=2.5, ms=4, color="#E65100", label="Fitted mixture")
+    if any(s > 0 for s in mix_sem):
+        ax.fill_between(
+            lengths,
+            np.asarray(mix_mean) - np.asarray(mix_sem),
+            np.asarray(mix_mean) + np.asarray(mix_sem),
+            color="#E65100",
+            alpha=0.18,
+            linewidth=0,
+        )
+    ax.set_xscale("log")
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("Context length")
+    ax.set_ylabel("Renormalized P(next in source-graph neighbors)")
+    ax.set_title("LLM curve vs fitted mixture curve")
+    ax.grid(True, alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
 def run_mixture_analysis(
     input_path: str | Path,
     out_dir: str | Path | None = None,
@@ -364,6 +464,17 @@ def run_mixture_analysis(
     written.append(json_path)
     written.append(plot_weights(per_length, output_dir / "mixture_weights_by_context.png", "Fitted mixture weights by context length"))
     written.append(plot_kl_comparison(per_length, output_dir / "mixture_kl_comparison.png"))
+    try:
+        written.append(
+            plot_mixture_neighbor_fit(
+                rows,
+                words,
+                per_length,
+                output_dir / "mixture_neighbor_curve_fit.png",
+            )
+        )
+    except ValueError as exc:
+        print(f"Skipping mixture neighbor curve: {exc}")
     if smooth and "smooth_context_model" in result:
         written.append(
             plot_weights(

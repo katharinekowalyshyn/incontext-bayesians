@@ -160,7 +160,10 @@ This writes:
 - `mixture_analysis.json`
 - `mixture_weights_by_context.png`
 - `mixture_kl_comparison.png`
+- `mixture_neighbor_curve_fit.png`
 - `mixture_weights_smooth_context.png`
 
 The per-context model fits one simplex weight vector at each context length.
 The smooth model fits `lambda(t) = softmax(a + b * log(t))` across all rows.
+`mixture_neighbor_curve_fit.png` shows whether the fitted mixture reproduces
+the LLM's renormalized neighbor-probability curve.
