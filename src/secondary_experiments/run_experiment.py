@@ -6,6 +6,8 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 
+import torch
+
 if __package__ in {None, ""}:
     import sys
 
@@ -26,6 +28,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_CONFIG.device,
         choices=["cuda", "mps", "cpu"],
         help="Device for TransformerLens. Defaults to cuda, then mps, then cpu.",
+    )
+    parser.add_argument(
+        "--dtype",
+        default="float16",
+        choices=["float16", "bfloat16", "float32"],
+        help="Model weight dtype (default: float16, ~16 GB for Llama-3.1-8B).",
     )
     parser.add_argument("--epsilon", type=float, default=DEFAULT_CONFIG.epsilon)
     parser.add_argument("--alpha", type=float, default=DEFAULT_CONFIG.alpha)
@@ -63,10 +71,16 @@ def parse_mix_spec(spec: str | None) -> tuple[tuple[str, float], ...] | None:
 def main() -> None:
     args = parse_args()
     out_dir = Path(args.out_dir)
+    _dtype_map = {
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+        "float32": torch.float32,
+    }
     config = replace(
         DEFAULT_CONFIG,
         model_name=args.model,
         device=args.device,
+        dtype=_dtype_map[args.dtype],
         epsilon=args.epsilon,
         alpha=args.alpha,
         seq_len=args.seq_len,

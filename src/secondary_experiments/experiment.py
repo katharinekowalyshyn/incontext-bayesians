@@ -204,7 +204,7 @@ def run_with_llm(config: ExperimentConfig = DEFAULT_CONFIG) -> list[dict]:
     )
     cache = CacheBaseline(alpha=config.alpha)
 
-    model = load_model(config.model_name, device=config.device)
+    model = load_model(config.model_name, device=config.device, dtype=config.dtype)
     token_map = build_token_map(model)
 
     rows: list[dict] = []

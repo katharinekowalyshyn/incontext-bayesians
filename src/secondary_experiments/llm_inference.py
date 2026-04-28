@@ -33,18 +33,20 @@ def load_model(
     model_name: str = DEFAULT_CONFIG.model_name,
     cache_dir: str | None = None,
     device: str | None = None,
+    dtype: torch.dtype = torch.float16,
 ):
-    """Load a TransformerLens model, copied in shape from the initial scripts."""
+    """Load a TransformerLens model in float16 to halve GPU memory (~16 GB vs ~32 GB)."""
 
     if cache_dir is None:
         cache_dir = os.environ.get("HF_HOME", None)
     if device is None:
         device = default_device()
-    print(f"Loading {model_name} on device={device}...")
+    print(f"Loading {model_name} on device={device}, dtype={dtype}...")
     model = HookedTransformer.from_pretrained_no_processing(
         model_name,
         device=device,
         cache_dir=cache_dir,
+        dtype=dtype,
     )
     model.eval()
     print(f"Model loaded on {model.cfg.device}.")
