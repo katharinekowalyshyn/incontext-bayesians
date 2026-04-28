@@ -1,0 +1,78 @@
+{
+  "condition": "neutral_overlap",
+  "C_MST": {
+    "grid": 60.0,
+    "ring": 44.0
+  },
+  "models": {
+    "per_graph": {
+      "model": "per_graph",
+      "condition": "neutral_overlap",
+      "params": {
+        "b0": -2.031912939364501,
+        "lam": 0.944328053765957,
+        "gamma_grid": 50.0,
+        "alpha_grid": 0.9679520340060249,
+        "q_grid": 0.9026289278446474,
+        "gamma_ring": 35.30541795501506,
+        "alpha_ring": 0.958109647697515,
+        "q_ring": 0.9442967246836731
+      },
+      "p0": {
+        "grid": 0.4773842958302339,
+        "ring": 0.734207837386748
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.009001558041219902,
+      "mse_val": 0.009482631550054443,
+      "mse_test": 0.008869452155834776,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 8,
+      "aic": -596.3011347907424,
+      "bic": -565.9814534235643,
+      "converged": true
+    },
+    "mixture_bias": {
+      "model": "mixture_bias",
+      "condition": "neutral_overlap",
+      "params": {
+        "b0": -15.0,
+        "lam": 0.01074221938281698,
+        "gamma": 7.985941951727133,
+        "alpha": 0.8746799529169604,
+        "q": 0.9160444411968072
+      },
+      "p0": {
+        "rho=0.00,grid": 0.5490687177352811,
+        "rho=0.50,grid": 0.4056998739251867,
+        "rho=0.50,ring": 0.6973728619632311,
+        "rho=1.00,ring": 0.7710428128102649
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.010949169754450365,
+      "mse_val": 0.01147066839066196,
+      "mse_test": 0.0106042139920697,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 5,
+      "aic": -538.2529678876771,
+      "bic": -519.3031670331908,
+      "converged": true
+    }
+  },
+  "comparison": {
+    "delta_aic_per_graph_minus_mixture": -58.048166903065294,
+    "delta_bic_per_graph_minus_mixture": -46.6782863903735,
+    "preferred_by_aic": "per_graph",
+    "preferred_by_bic": "per_graph"
+  }
+}

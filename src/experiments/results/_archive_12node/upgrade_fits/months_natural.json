@@ -1,0 +1,78 @@
+{
+  "condition": "months_natural",
+  "C_MST": {
+    "grid": 60.0,
+    "ring": 44.0
+  },
+  "models": {
+    "per_graph": {
+      "model": "per_graph",
+      "condition": "months_natural",
+      "params": {
+        "b0": 2.6508649252920997,
+        "lam": 1.0176375374647844,
+        "gamma_grid": 50.0,
+        "alpha_grid": 0.9692694939433238,
+        "q_grid": 0.9026587415287103,
+        "gamma_ring": 31.881048180737547,
+        "alpha_ring": 0.9638509602191072,
+        "q_ring": 1.0
+      },
+      "p0": {
+        "grid": 0.4773842958302339,
+        "ring": 0.7036433803538482
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.007987401823202792,
+      "mse_val": 0.008457265280452677,
+      "mse_test": 0.008123135262446722,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 8,
+      "aic": -635.3881477495839,
+      "bic": -605.0684663824059,
+      "converged": true
+    },
+    "mixture_bias": {
+      "model": "mixture_bias",
+      "condition": "months_natural",
+      "params": {
+        "b0": -15.0,
+        "lam": -0.14682823022495117,
+        "gamma": 2.8868102449220197,
+        "alpha": 0.86020384960473,
+        "q": 0.9654769345805936
+      },
+      "p0": {
+        "rho=0.00,grid": 0.5490687177352811,
+        "rho=0.50,grid": 0.4056998739251867,
+        "rho=0.50,ring": 0.6802263190038502,
+        "rho=1.00,ring": 0.7270604417038461
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.010347400154795005,
+      "mse_val": 0.011642896549437301,
+      "mse_test": 0.007993817287526267,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 5,
+      "aic": -556.7377339208134,
+      "bic": -537.7879330663271,
+      "converged": true
+    }
+  },
+  "comparison": {
+    "delta_aic_per_graph_minus_mixture": -78.65041382877052,
+    "delta_bic_per_graph_minus_mixture": -67.28053331607873,
+    "preferred_by_aic": "per_graph",
+    "preferred_by_bic": "per_graph"
+  }
+}

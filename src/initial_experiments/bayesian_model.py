@@ -337,12 +337,13 @@ def _mst_edge_count(A: np.ndarray) -> int:
 
 
 def mst_complexity_bits(A: np.ndarray) -> float:
-    """``C_MST(G) = |E_MST(G)| · ⌈log_2 |V|⌉``  (Checkpoint-2 §4.3).
+    """``C_MST(G) = |E_MST(G)| · ⌈log_2 |V|⌉``  (Checkpoint-2 §4.3, v1).
 
-    The description length (in bits) of encoding a minimum spanning
-    tree as an edge list where every vertex index is encoded using
-    ``⌈log_2 |V|⌉`` bits.  This is the Kolmogorov-complexity proxy
-    the Upgrade prior commits to for the final report.
+    NOTE: as of the two-condition 16-node refactor, this helper is kept only
+    for backward compatibility.  Any connected graph on |V| nodes has an MST
+    with exactly |V|−1 edges, so ``mst_complexity_bits`` depends only on |V|
+    and cannot distinguish a 16-node grid from a 16-node ring.  The Upgrade
+    prior now uses :func:`edge_complexity_bits` instead.
     """
     A = np.asarray(A)
     n = A.shape[0]
@@ -352,13 +353,47 @@ def mst_complexity_bits(A: np.ndarray) -> float:
     return float(_mst_edge_count(A) * bits_per_vertex)
 
 
+def edge_complexity_bits(A: np.ndarray) -> float:
+    """``C_edges(G) = |E(G)| · ⌈log_2 |V|⌉``  (Checkpoint-2 §4.3, v2).
+
+    Description length of the full unweighted edge list: each of ``|E|``
+    undirected edges is encoded by its two endpoint indices, and every
+    index takes ``⌈log_2 |V|⌉`` bits.  Ignoring the shared factor of 2
+    (absorbed into λ) this gives ``|E| · ⌈log_2 |V|⌉``.
+
+    This is the MDL complexity the Upgrade prior uses after the two-
+    condition refactor:
+
+        4×4 grid (|V|=16, |E|=24)   →   24 · 4 = 96 bits
+        16-cycle ring (|V|=16, |E|=16) → 16 · 4 = 64 bits
+
+    — the 32-bit asymmetry is what identifies λ.
+    """
+    A = np.asarray(A)
+    n = A.shape[0]
+    if n <= 1:
+        return 0.0
+    # Count undirected edges (A is symmetric so divide by 2; self-loops are
+    # assumed absent).
+    n_edges = float(A.sum()) / 2.0
+    bits_per_vertex = int(np.ceil(np.log2(n)))
+    return float(n_edges * bits_per_vertex)
+
+
 def mst_log_prior(
     adjacencies: dict[str, np.ndarray],
     lam: float = 1.0,
     b0: float = 0.0,
     centre: bool = True,
+    complexity: str = "edges",
 ) -> dict[str, float]:
-    """Checkpoint-2 §4 Upgrade prior:  b_k = b_0 − λ · C_MST(G_k).
+    """Checkpoint-2 §4 Upgrade prior:  b_k = b_0 − λ · C(G_k).
+
+    The function name is retained for backward compatibility, but the default
+    complexity measure is now the full-edge-list MDL ``C_edges`` (v2 of the
+    prior; see :func:`edge_complexity_bits`).  Pass ``complexity="mst"`` to
+    recover the original MST-based prior (v1) — this is only useful when the
+    candidate graphs have different numbers of vertices.
 
     Args
     ----
@@ -374,13 +409,20 @@ def mst_log_prior(
         candidates (only differences matter in the BayesianGraphClassifier).
     centre : if True, shift so ``max(log_prior) = 0``.  Purely cosmetic;
         only relative values affect the posterior.
+    complexity : ``"edges"`` (default, v2) or ``"mst"`` (v1 backward-compat).
 
     Returns
     -------
     ``{name: b_k}`` suitable for ``BayesianGraphClassifier(..., log_prior=...)``.
-    Simpler graphs (smaller MST bit-cost) receive a less-negative prior.
+    Simpler graphs (smaller bit-cost) receive a less-negative prior.
     """
-    bits = {name: mst_complexity_bits(A) for name, A in adjacencies.items()}
+    if complexity == "edges":
+        fn = edge_complexity_bits
+    elif complexity == "mst":
+        fn = mst_complexity_bits
+    else:
+        raise ValueError(f"unknown complexity measure: {complexity!r}")
+    bits = {name: fn(A) for name, A in adjacencies.items()}
     raw = {name: b0 - lam * c for name, c in bits.items()}
     if centre:
         offset = max(raw.values())

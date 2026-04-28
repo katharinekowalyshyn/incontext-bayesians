@@ -1,0 +1,17 @@
+condition,rho,graph,N_star
+months_natural,0.00,grid,187.06
+months_natural,0.50,grid,207.55
+months_natural,0.50,ring,235.32
+months_natural,1.00,ring,2159.03
+months_permuted,0.00,grid,187.06
+months_permuted,0.50,grid,203.21
+months_permuted,0.50,ring,257.58
+months_permuted,1.00,ring,193.84
+neutral_disjoint,0.00,grid,187.06
+neutral_disjoint,0.50,grid,198.00
+neutral_disjoint,0.50,ring,98.91
+neutral_disjoint,1.00,ring,237.02
+neutral_overlap,0.00,grid,187.06
+neutral_overlap,0.50,grid,198.70
+neutral_overlap,0.50,ring,144.16
+neutral_overlap,1.00,ring,254.27

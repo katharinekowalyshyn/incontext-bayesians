@@ -1,0 +1,78 @@
+{
+  "condition": "neutral_disjoint",
+  "C_MST": {
+    "grid": 60.0,
+    "ring": 44.0
+  },
+  "models": {
+    "per_graph": {
+      "model": "per_graph",
+      "condition": "neutral_disjoint",
+      "params": {
+        "b0": -4.642980162624352,
+        "lam": 0.9022912264360277,
+        "gamma_grid": 50.0,
+        "alpha_grid": 0.9675100290593006,
+        "q_grid": 0.9039088702715454,
+        "gamma_ring": 35.81969413138321,
+        "alpha_ring": 0.9563933637717403,
+        "q_ring": 0.9480258268489717
+      },
+      "p0": {
+        "grid": 0.4773842958302339,
+        "ring": 0.6939625785319852
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.008669516786588966,
+      "mse_val": 0.007956153834972106,
+      "mse_test": 0.009207280448538916,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 8,
+      "aic": -608.5913064341502,
+      "bic": -578.2716250669721,
+      "converged": true
+    },
+    "mixture_bias": {
+      "model": "mixture_bias",
+      "condition": "neutral_disjoint",
+      "params": {
+        "b0": -15.0,
+        "lam": 0.02490702358979615,
+        "gamma": 8.577768980136321,
+        "alpha": 0.8783163760445873,
+        "q": 0.920360029665206
+      },
+      "p0": {
+        "rho=0.00,grid": 0.5490687177352811,
+        "rho=0.50,grid": 0.4056998739251867,
+        "rho=0.50,ring": 0.6386902250815183,
+        "rho=1.00,ring": 0.7492349319824522
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.01003866049374427,
+      "mse_val": 0.010119766275975457,
+      "mse_test": 0.01080500480176113,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 5,
+      "aic": -566.6430894028655,
+      "bic": -547.6932885483792,
+      "converged": true
+    }
+  },
+  "comparison": {
+    "delta_aic_per_graph_minus_mixture": -41.948217031284685,
+    "delta_bic_per_graph_minus_mixture": -30.57833651859289,
+    "preferred_by_aic": "per_graph",
+    "preferred_by_bic": "per_graph"
+  }
+}

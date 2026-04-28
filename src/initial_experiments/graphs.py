@@ -101,7 +101,58 @@ OVERLAP_COLORS = [
 
 OVERLAP_WORD_TO_COLOR = {w: c for w, c in zip(RING_WORDS_OVERLAP, OVERLAP_COLORS)}
 
-# Words that appear in both the grid and the overlap ring
+# ── 16-node ring vocabularies (Checkpoint-2 two-condition design) ─────────────
+# The Bayesian fit pipeline (src/experiments/) uses two 16-node rings, sized
+# to match the 4×4 grid so every (condition, ρ) cell has 16 walks:
+#
+#   RING_DISJOINT_16  : fully disjoint from the grid vocabulary — no token
+#                       appears in both graphs, so the LLM can always
+#                       identify which structure it is on from token identity
+#                       alone.  Tests pure in-context learning of ring order.
+#
+#   RING_OVERLAP_16   : three tokens (rock, sand, box) are shared with the
+#                       grid; the rest are neutral.  At shared tokens the
+#                       model cannot tell which graph it is on without using
+#                       surrounding context, testing structural inference
+#                       over token identity.
+#
+# Grid positions of shared words (same as the 12-node overlap ring above):
+#   rock → grid row 3, col 0  (neighbors: math, box)
+#   sand → grid row 1, col 1  (neighbors: bird, milk, box, sun)
+#   box  → grid row 2, col 0  (neighbors: house, sand, rock)
+
+RING_DISJOINT_16 = [
+    "amber",  "quilt",  "linen",   "velvet",
+    "coral",  "moss",   "ribbon",  "scarf",
+    "flame",  "ember",  "feather", "ruby",
+    "pearl",  "copper", "silver",  "jade",
+]
+
+RING_OVERLAP_16 = [
+    "candle", "brick",  "fern",   "lamp",
+    "dust",   "wool",   "reef",   "vine",
+    "rock",   "sand",   "box",    "prism",
+    "scroll", "ash",    "coal",   "herb",
+]
+
+DISJOINT16_COLORS = [
+    "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
+    "#ff7f00", "#a65628", "#f781bf", "#999999",
+    "#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3",
+    "#a6d854", "#ffd92f", "#e5c494", "#b3b3b3",
+]
+
+OVERLAP16_COLORS = [
+    "#e41a1c", "#377eb8", "#4daf4a", "#984ea3",
+    "#ff7f00", "#a65628", "#f781bf", "#999999",
+    "#a6d854", "#ffd92f", "#e5c494", "#8da0cb",
+    "#66c2a5", "#fc8d62", "#e78ac3", "#b3b3b3",
+]
+
+DISJOINT16_WORD_TO_COLOR = {w: c for w, c in zip(RING_DISJOINT_16, DISJOINT16_COLORS)}
+OVERLAP16_WORD_TO_COLOR  = {w: c for w, c in zip(RING_OVERLAP_16,  OVERLAP16_COLORS)}
+
+# Words that appear in both the grid and the 16-node overlap ring.
 SHARED_WORDS = {"rock", "sand", "box"}
 
 

@@ -4,36 +4,27 @@ vocabulary_tl_experiment.py
 TransformerLens version of the vocabulary/ring experiment.
 Uses a single forward pass per sequence — fast and precise.
 
-Four conditions:
+Two conditions (both use a 16-node ring to size-match the 4×4 grid):
 
-  months_natural  — Ring uses months in natural sequential order (Jan→Feb→...→Dec).
-                    The model's semantic prior matches the in-context ring structure.
-                    Expect fast, clean learning.
+  disjoint — Ring uses 16 semantically neutral nouns fully disjoint from the
+             grid vocabulary.  At every token the model can identify which
+             graph it is on from token identity alone; any ring-structure
+             accuracy must come from in-context learning of the ring order.
 
-  months_permuted — Ring uses a permuted month order where no naturally-adjacent
-                    months are in-context neighbors (Jan→Aug→Mar→Oct→May→Dec→Jul→
-                    Feb→Sep→Apr→Nov→Jun). The semantic prior directly conflicts with
-                    the in-context structure. Replicates the days-of-week experiment
-                    from Park et al. (ICLR 2025) with months.
+  overlap  — Ring uses 16 neutral nouns, 3 of which (rock, sand, box) are
+             also in the grid vocabulary.  At shared tokens the model cannot
+             tell which graph it is on without using surrounding context,
+             testing structural inference over token identity.
 
-  neutral_disjoint — Ring uses semantically neutral words (candle, brick, fern, ...)
-                     fully disjoint from the grid vocabulary. No semantic prior;
-                     serves as a clean control for in-context learning speed.
-
-  neutral_overlap  — 3 ring words (rock, sand, box) are shared with the grid
-                     vocabulary. Tests ambiguity at shared tokens.
-
-For each condition, sweeps rho in {0.0, 0.5, 1.0} and measures
-P(next token ∈ valid neighbors) — summed softmax probability over ground-truth
-neighbor tokens — at sampled context lengths up to 2000.
-
-Our contribution: the interleaved mixing approach (rho > 0), where grid and ring
-random-walk segments are concatenated into a single sequence. This tests whether
-two competing in-context structures interfere with each other's learning.
+For each condition, sweeps rho over a fine ladder (ρ ∈ {0.0, 0.2, …, 0.8, 1.0})
+and measures P(next token ∈ valid neighbors) at sampled context lengths up to
+2000.  ρ = 0 is a pure-grid run, ρ = 1 a pure-ring run, intermediate values
+interleave grid/ring segments.  The ρ ladder is needed to identify Dan's
+Upgrade prior λ (Checkpoint-2 §4).
 
 Usage:
     python src/initial_experiments/vocabulary_tl_experiment.py
-    python src/initial_experiments/vocabulary_tl_experiment.py --condition months_natural
+    python src/initial_experiments/vocabulary_tl_experiment.py --condition disjoint
     python src/initial_experiments/vocabulary_tl_experiment.py --replot
 """
 
@@ -53,15 +44,15 @@ sys.path.insert(0, HERE)
 
 from graphs import (
     Ring,
-    MONTHS, MONTHS_PERMUTED,
-    RING_WORDS, RING_WORDS_OVERLAP, SHARED_WORDS,
+    RING_DISJOINT_16, RING_OVERLAP_16, SHARED_WORDS,
 )
 from sanity_check import Grid, WORDS as GRID_WORDS, set_seed, make_interleaved_sequence
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
 MODEL_NAME       = "meta-llama/Llama-3.1-8B"
-RHOS             = [0.0, 0.5, 1.0]
+# Full ρ ladder for Dan's Upgrade fit — 9 points including pure-graph endpoints.
+RHOS             = [0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 1.0]
 SEQ_LEN          = 2000
 SEGMENT_LEN      = 100
 EVAL_LENGTHS     = [50, 100, 200, 300, 400, 500, 600, 700, 850, 1000, 1200, 1400, 1600, 1800, 2000]
@@ -73,35 +64,23 @@ PLOT_DIR = os.path.join(HERE, "results")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 CONDITIONS = {
-    "months_natural": {
-        "label": "Months — natural order",
-        "ring_words": MONTHS,
+    "disjoint": {
+        "label": "16-node ring — disjoint vocabulary",
+        "ring_words": RING_DISJOINT_16,
         "description": (
-            "Jan→Feb→...→Dec ring; semantic prior matches in-context structure"
+            "16 neutral nouns, zero overlap with the 4×4 grid vocabulary; "
+            "model can always identify the source graph from token identity"
         ),
         "has_overlap": False,
     },
-    "months_permuted": {
-        "label": "Months — permuted (prior conflicts with in-context)",
-        "ring_words": MONTHS_PERMUTED,
+    "overlap": {
+        "label": "16-node ring — 3 shared tokens with grid",
+        "ring_words": RING_OVERLAP_16,
         "description": (
-            "Months permuted so no naturally-adjacent months are in-context neighbors "
-            "(min natural distance between any in-context-adjacent pair = 5)"
+            "16 neutral nouns; rock/sand/box also appear in the grid "
+            "vocabulary, forcing the model to use structure rather than "
+            "token identity at shared positions"
         ),
-        "has_overlap": False,
-    },
-    "neutral_disjoint": {
-        "label": "Neutral words — disjoint",
-        "ring_words": RING_WORDS,
-        "description": (
-            "Semantically neutral words, fully disjoint from grid; no semantic prior"
-        ),
-        "has_overlap": False,
-    },
-    "neutral_overlap": {
-        "label": "Neutral words — overlapping vocab",
-        "ring_words": RING_WORDS_OVERLAP,
-        "description": "3 ring words (rock, sand, box) shared with grid",
         "has_overlap": True,
     },
 }
@@ -203,8 +182,9 @@ def run_condition_rho(model, condition_name, rho, eval_lengths, seed_offset=0):
     grid       = Grid()
     ring       = Ring(words=ring_words)
 
-    # Use one sequence per graph node: 16 for pure-grid runs, 12 (ring.n) otherwise.
-    n_sequences = len(grid.words) if rho == 0.0 else ring.n
+    # 16 walks per cell — one starting node per graph vertex.  Grid and ring
+    # both have 16 nodes so this is symmetric across ρ.
+    n_sequences = 16
 
     grid_tok = build_token_map(model, GRID_WORDS)
     ring_tok = build_token_map(model, ring_words)
@@ -267,13 +247,19 @@ def load_condition(condition_name):
 GRID_COLOR  = "#1976D2"
 RING_COLOR  = "#C62828"
 SHARE_COLOR = "#FF8F00"
-RHO_LABEL   = {0.0: "ρ=0 (pure grid)", 0.5: "ρ=0.5 (mixed)", 1.0: "ρ=1 (pure ring)"}
+
+
+def _rho_label(rho: float) -> str:
+    if rho == 0.0:
+        return "ρ=0 (pure grid)"
+    if rho == 1.0:
+        return "ρ=1 (pure ring)"
+    return f"ρ={rho:.1f} (mixed)"
+
 
 COND_COLORS = {
-    "months_natural":   "#1565C0",
-    "months_permuted":  "#AD1457",
-    "neutral_disjoint": "#2E7D32",
-    "neutral_overlap":  "#E65100",
+    "disjoint": "#2E7D32",
+    "overlap":  "#E65100",
 }
 
 
@@ -302,21 +288,25 @@ def _style_ax(ax, title):
 
 
 def plot_condition(results, condition_name):
-    """3-panel plot (one per rho) for a single condition."""
-    fig, axes = plt.subplots(1, 3, figsize=(14, 4.5), sharey=True)
+    """One panel per ρ for a single condition."""
+    rhos = sorted(results.keys())
+    n = max(len(rhos), 1)
+    fig, axes = plt.subplots(1, n, figsize=(3.5 + 2.5 * n, 4.2),
+                             sharey=True, squeeze=False)
+    axes = axes[0]
 
-    for ax, rho in zip(axes, [0.0, 0.5, 1.0]):
+    for ax, rho in zip(axes, rhos):
         data = results[rho]
         _curve(ax, data["grid"], GRID_COLOR, "Grid neighbors")
         _curve(ax, data["ring"], RING_COLOR, "Ring neighbors")
         if CONDITIONS[condition_name]["has_overlap"]:
             _curve(ax, data["shared"], SHARE_COLOR, "Shared-word positions", ls="--")
-        _style_ax(ax, RHO_LABEL[rho])
+        _style_ax(ax, _rho_label(rho))
 
     axes[0].set_ylabel("P(next token ∈ valid neighbors)", fontsize=10)
     fig.suptitle(
         f"Llama 3.1 8B (base, TransformerLens) — {CONDITIONS[condition_name]['label']}\n"
-        f"(16 seq ρ=0 / 12 seq ρ>0, segment_len={SEGMENT_LEN})",
+        f"(16 walks per (ρ, graph) cell, segment_len={SEGMENT_LEN})",
         fontsize=12,
     )
     fig.tight_layout()
@@ -327,22 +317,26 @@ def plot_condition(results, condition_name):
 
 
 def plot_comparison(all_results):
-    """
-    3-panel head-to-head across all available conditions.
+    """3-panel head-to-head across the two conditions.
 
-    Panel 1 — pure ring (ρ=1): baseline learnability per condition.
-               Key question: does semantic prior help (natural) or hurt (permuted)?
-    Panel 2 — mixed (ρ=0.5), grid accuracy: does the ring condition affect
-               how well grid structure is learned under competition?
-    Panel 3 — mixed (ρ=0.5), ring accuracy: the competition signal.
-               Does mixing suppress ring learning, and does semantic prior modulate this?
+    Panel 1 — pure ring (ρ=1): ring-learning speed per condition.
+               Does the shared-token ambiguity in `overlap` slow ring learning?
+    Panel 2 — mid-mixed (ρ≈0.5), grid accuracy: does the overlap condition
+               damage grid learning, since shared-token positions can be
+               confused for ring positions?
+    Panel 3 — mid-mixed (ρ≈0.5), ring accuracy: symmetric competition signal.
     """
     if len(all_results) < 2:
         return
 
+    # Pick the ρ closest to 0.5 for the mixed panels (lets this work with the
+    # 9-point ρ ladder even though 0.5 might not be exactly present in some
+    # subset runs).
+    rhos_in_common = set.intersection(*[set(d.keys()) for d in all_results.values()])
+    rho_mid = min(rhos_in_common, key=lambda r: abs(r - 0.5)) if rhos_in_common else 0.5
+
     fig, axes = plt.subplots(1, 3, figsize=(16, 4.5))
 
-    # Panel 1: pure ring baseline
     ax = axes[0]
     for cond, data in all_results.items():
         if 1.0 in data:
@@ -350,24 +344,24 @@ def plot_comparison(all_results):
     _style_ax(ax, "Pure ring (ρ=1): ring accuracy by condition")
     ax.set_ylabel("P(next ∈ ring neighbors)", fontsize=10)
 
-    # Panel 2: mixed, grid accuracy
     ax = axes[1]
     for cond, data in all_results.items():
-        if 0.5 in data:
-            _curve(ax, data[0.5]["grid"], COND_COLORS[cond], CONDITIONS[cond]["label"])
-    _style_ax(ax, "Mixed (ρ=0.5): grid accuracy")
+        if rho_mid in data:
+            _curve(ax, data[rho_mid]["grid"], COND_COLORS[cond],
+                   CONDITIONS[cond]["label"])
+    _style_ax(ax, f"Mixed (ρ={rho_mid:.2f}): grid accuracy")
     ax.set_ylabel("P(next ∈ grid neighbors)", fontsize=10)
 
-    # Panel 3: mixed, ring accuracy (competition signal)
     ax = axes[2]
     for cond, data in all_results.items():
-        if 0.5 in data:
-            _curve(ax, data[0.5]["ring"], COND_COLORS[cond], CONDITIONS[cond]["label"])
-    _style_ax(ax, "Mixed (ρ=0.5): ring accuracy\n(competition signal)")
+        if rho_mid in data:
+            _curve(ax, data[rho_mid]["ring"], COND_COLORS[cond],
+                   CONDITIONS[cond]["label"])
+    _style_ax(ax, f"Mixed (ρ={rho_mid:.2f}): ring accuracy\n(competition signal)")
     ax.set_ylabel("P(next ∈ ring neighbors)", fontsize=10)
 
     fig.suptitle(
-        "Vocabulary & semantic prior experiment — all conditions\n"
+        "Two-condition vocabulary experiment — disjoint vs overlap\n"
         "Llama 3.1 8B (base), TransformerLens",
         fontsize=12,
     )
@@ -417,9 +411,8 @@ def main():
 
             cond_results = {}
             for i, rho in enumerate(RHOS):
-                n_seq = 16 if rho == 0.0 else 12
                 print(f"\n  [{i+1}/{len(RHOS)}] ρ={rho}  "
-                      f"({n_seq} sequences × {len(EVAL_LENGTHS)} eval points)")
+                      f"(16 walks × {len(EVAL_LENGTHS)} eval points)")
                 grid_accs, ring_accs, shared_accs = run_condition_rho(
                     model, cond, rho, EVAL_LENGTHS, seed_offset=i,
                 )

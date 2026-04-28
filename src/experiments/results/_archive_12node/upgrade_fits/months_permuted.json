@@ -1,0 +1,78 @@
+{
+  "condition": "months_permuted",
+  "C_MST": {
+    "grid": 60.0,
+    "ring": 44.0
+  },
+  "models": {
+    "per_graph": {
+      "model": "per_graph",
+      "condition": "months_permuted",
+      "params": {
+        "b0": -3.304764057609079,
+        "lam": 0.920666090388819,
+        "gamma_grid": 50.0,
+        "alpha_grid": 0.9686695081159844,
+        "q_grid": 0.902007396097502,
+        "gamma_ring": 34.52764752933033,
+        "alpha_ring": 0.9535370439792894,
+        "q_ring": 0.9653584449651712
+      },
+      "p0": {
+        "grid": 0.4773842958302339,
+        "ring": 0.6855194958625361
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.007330550265362751,
+      "mse_val": 0.010748295306314515,
+      "mse_test": 0.008522655105936592,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 8,
+      "aic": -663.4496347428961,
+      "bic": -633.1299533757181,
+      "converged": true
+    },
+    "mixture_bias": {
+      "model": "mixture_bias",
+      "condition": "months_permuted",
+      "params": {
+        "b0": -15.0,
+        "lam": 0.028600955182585028,
+        "gamma": 8.7135749534622,
+        "alpha": 0.8803268672929565,
+        "q": 0.9242016321911207
+      },
+      "p0": {
+        "rho=0.00,grid": 0.5490687177352811,
+        "rho=0.50,grid": 0.4056998739251867,
+        "rho=0.50,ring": 0.7108963758219033,
+        "rho=1.00,ring": 0.6601426159031689
+      },
+      "C_MST": {
+        "grid": 60.0,
+        "ring": 44.0
+      },
+      "mse_train": 0.009893747439867378,
+      "mse_val": 0.012631805216148727,
+      "mse_test": 0.01146011069759661,
+      "n_train": 327,
+      "n_val": 144,
+      "n_test": 129,
+      "k_params": 5,
+      "aic": -571.3978991270593,
+      "bic": -552.448098272573,
+      "converged": true
+    }
+  },
+  "comparison": {
+    "delta_aic_per_graph_minus_mixture": -92.05173561583683,
+    "delta_bic_per_graph_minus_mixture": -80.68185510314504,
+    "preferred_by_aic": "per_graph",
+    "preferred_by_bic": "per_graph"
+  }
+}
