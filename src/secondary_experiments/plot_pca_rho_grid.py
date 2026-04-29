@@ -161,6 +161,8 @@ def make_rho_grid_figure(
     results_dir: Path = RESULTS_DIR,
     out_path: Path | None = None,
     with_structure: bool = False,
+    pc_pairs: list[tuple[int, int]] | None = None,
+    suffix: str = "",
 ) -> Path:
     # Only keep columns whose NPZ file exists.
     available = [
@@ -174,13 +176,16 @@ def make_rho_grid_figure(
             "Run `python -m src.secondary_experiments.run_pca_all` first."
         )
 
+    pairs = pc_pairs if pc_pairs is not None else [(1, 2), (3, 4)]
+    n_rows = len(pairs)
+
     # Pre-load full adjacency matrices (16×16, WORDS order) once if needed.
     adj_full: dict[str, np.ndarray] = _get_adjacencies() if with_structure else {}
 
     n_cols = len(available)
     fig, axes = plt.subplots(
-        2, n_cols,
-        figsize=(2.4 * n_cols, 5.5),
+        n_rows, n_cols,
+        figsize=(2.4 * n_cols, 2.8 * n_rows),
         squeeze=False,
     )
 
@@ -241,7 +246,7 @@ def make_rho_grid_figure(
                 A_p = A_full[np.ix_(present, present)]
                 edge_overlays.append((A_p, color))
 
-        for row, (pc_x, pc_y) in enumerate([(1, 2), (3, 4)]):
+        for row, (pc_x, pc_y) in enumerate(pairs):
             n_missing = len(WORDS) - n_present
             col_title = label if row == 0 else ""
             if col_title and n_missing:
@@ -258,8 +263,8 @@ def make_rho_grid_figure(
             )
 
     # Row labels on the left-most column.
-    for row, (pc_x, pc_y) in enumerate([(1, 2), (3, 4)]):
-        axes[row, 0].set_ylabel(f"PC{pc_y}  /  PC{pc_x}–PC{pc_y}", fontsize=8)
+    for row, (pc_x, pc_y) in enumerate(pairs):
+        axes[row, 0].set_ylabel(f"PC{pc_x} vs PC{pc_y}", fontsize=8)
 
     # Legend for structure figure.
     if with_structure:
@@ -277,18 +282,19 @@ def make_rho_grid_figure(
             bbox_to_anchor=(0.5, -0.02),
         )
 
-    suffix = "_structure" if with_structure else ""
-    title_note = " + ideal graph edges" if with_structure else ""
+    struct_sfx  = "_structure" if with_structure else ""
+    title_note  = " + ideal graph edges" if with_structure else ""
+    pairs_label = "  ·  PC pairs: " + ", ".join(f"{a}/{b}" for a, b in pairs)
     fig.suptitle(
         f"Llama 3.1 8B — class-mean PCA at T={T}  ·  all mixing ratios"
-        f"{title_note}  (layer 26, Nw=50)",
-        fontsize=11,
+        f"{title_note}{pairs_label}  (layer 26, Nw=50)",
+        fontsize=10,
         y=1.01,
     )
     fig.tight_layout()
 
     if out_path is None:
-        out_path = results_dir / f"pca_rho_grid_T{T}{suffix}.png"
+        out_path = results_dir / f"pca_rho_grid_T{T}{suffix}{struct_sfx}.png"
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
@@ -301,13 +307,18 @@ def make_rho_grid_figure_split(
     T: int = 1400,
     results_dir: Path = RESULTS_DIR,
     out_path: Path | None = None,
+    pc_pairs: list[tuple[int, int]] | None = None,
+    suffix: str = "",
 ) -> Path:
-    """4-row × N-column figure: grid edges on top half, ring edges on bottom half.
+    """(2×len(pc_pairs))-row × N-column figure.
 
-    Rows 0–1: PC1/2 and PC3/4 with only grid edges (blue).
-    Rows 2–3: PC1/2 and PC3/4 with only ring edges (red).
+    Top half: pc_pairs rows with grid edges (blue).
+    Bottom half: same pc_pairs rows with ring edges (red).
     Each column is one mixing ratio.
     """
+    pairs = pc_pairs if pc_pairs is not None else [(1, 2), (3, 4)]
+    n_pair_rows = len(pairs)
+
     available = [
         (rho, rel, label)
         for rho, rel, label in _LADDER
@@ -319,23 +330,23 @@ def make_rho_grid_figure_split(
     adj_full = _get_adjacencies()
     n_cols   = len(available)
 
-    # 4 rows: [grid PC1/2, grid PC3/4, ring PC1/2, ring PC3/4]
-    ROW_SPEC = [
-        (0, (1, 2), "grid", _GRID_EDGE_COLOR),
-        (1, (3, 4), "grid", _GRID_EDGE_COLOR),
-        (2, (1, 2), "ring", _RING_EDGE_COLOR),
-        (3, (3, 4), "ring", _RING_EDGE_COLOR),
-    ]
+    # Build row spec: grid block then ring block, each with all pc_pairs.
+    ROW_SPEC = []
+    for i, (pc_x, pc_y) in enumerate(pairs):
+        ROW_SPEC.append((i, (pc_x, pc_y), "grid", _GRID_EDGE_COLOR))
+    for i, (pc_x, pc_y) in enumerate(pairs):
+        ROW_SPEC.append((n_pair_rows + i, (pc_x, pc_y), "ring", _RING_EDGE_COLOR))
 
+    n_rows_total = 2 * n_pair_rows
     fig, axes = plt.subplots(
-        4, n_cols,
-        figsize=(2.4 * n_cols, 10.5),
+        n_rows_total, n_cols,
+        figsize=(2.4 * n_cols, 2.8 * n_rows_total),
         squeeze=False,
     )
 
-    # Horizontal divider between the two blocks.
+    # Horizontal divider between the grid and ring blocks.
     from matplotlib.lines import Line2D
-    for col_ax in axes[2]:
+    for col_ax in axes[n_pair_rows]:
         col_ax.spines["top"].set_linewidth(2.0)
         col_ax.spines["top"].set_color("#444444")
 
@@ -369,12 +380,8 @@ def make_rho_grid_figure_split(
         pca_dirs  = _compute_pca(H, k=4)
         projected = H @ pca_dirs.T
 
-        for row_idx, (pc_x, pc_y), graph_name, color in [
-            (r, pc, g, c) for r, pc, g, c in ROW_SPEC
-        ]:
+        for row_idx, (pc_x, pc_y), graph_name, color in ROW_SPEC:
             # Only draw the edges that belong to the current half.
-            # For pure-grid columns: skip ring rows (no ring signal).
-            # For pure-ring columns: skip grid rows (no grid signal).
             if rho == 0.0 and graph_name == "ring":
                 edge_overlays = None
             elif rho == 1.0 and graph_name == "grid":
@@ -383,12 +390,13 @@ def make_rho_grid_figure_split(
                 A_p = adj_full[graph_name][np.ix_(present, present)]
                 edge_overlays = [(A_p, color)]
 
-            # Column title only on row 0 and row 2 (top of each block).
+            # Column title at top of each block.
+            n_missing = len(WORDS) - n_present
+            miss_tag = f"\n({n_missing} unseen)" if n_missing else ""
             if row_idx == 0:
-                n_missing = len(WORDS) - n_present
-                col_title = label + (f"\n({n_missing} unseen)" if n_missing else "")
-            elif row_idx == 2:
-                col_title = label   # repeat ρ label at top of ring block
+                col_title = label + miss_tag
+            elif row_idx == n_pair_rows:
+                col_title = label + miss_tag
             else:
                 col_title = ""
 
@@ -402,13 +410,12 @@ def make_rho_grid_figure_split(
             )
 
     # Y-axis labels for the left-most column.
-    row_ylabels = ["PC1 vs PC2", "PC3 vs PC4", "PC1 vs PC2", "PC3 vs PC4"]
-    for row_idx, ylabel in enumerate(row_ylabels):
-        axes[row_idx, 0].set_ylabel(ylabel, fontsize=8)
+    for row_idx, (_, (pc_x, pc_y), _, _) in enumerate(ROW_SPEC):
+        axes[row_idx, 0].set_ylabel(f"PC{pc_x} vs PC{pc_y}", fontsize=8)
 
     # Block labels on the far left.
     for block_row, block_label, color in [(0, "Grid edges →", _GRID_EDGE_COLOR),
-                                           (2, "Ring edges →", _RING_EDGE_COLOR)]:
+                                           (n_pair_rows, "Ring edges →", _RING_EDGE_COLOR)]:
         fig.text(
             0.005, 1 - (block_row / 4) - 0.12,
             block_label,
@@ -424,16 +431,16 @@ def make_rho_grid_figure_split(
     fig.legend(handles=legend_elements, loc="lower center", ncol=2,
                fontsize=8, framealpha=0.85, bbox_to_anchor=(0.5, -0.01))
 
+    pairs_label = ", ".join(f"{a}/{b}" for a, b in pairs)
     fig.suptitle(
         f"Llama 3.1 8B — class-mean PCA at T={T}  ·  all mixing ratios\n"
-        f"Top: grid structure overlay   ·   Bottom: ring structure overlay   "
-        f"(layer 26, Nw=50)",
-        fontsize=11, y=1.005,
+        f"Top: grid edges  ·  Bottom: ring edges  ·  PC pairs: {pairs_label}  (layer 26, Nw=50)",
+        fontsize=10, y=1.005,
     )
     fig.tight_layout()
 
     if out_path is None:
-        out_path = results_dir / f"pca_rho_grid_T{T}_split.png"
+        out_path = results_dir / f"pca_rho_grid_T{T}{suffix}_split.png"
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
@@ -463,28 +470,45 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--split", action="store_true",
-        help="Produce the 4-row split figure: grid edges on top, ring on bottom.",
+        help="Produce the split figure: grid edges on top block, ring on bottom.",
+    )
+    parser.add_argument(
+        "--off-diagonal", action="store_true",
+        help="Also produce figures for PC pairs 1/3, 1/4, 2/3, 2/4.",
     )
     return parser.parse_args()
+
+
+_STANDARD_PAIRS:    list[tuple[int, int]] = [(1, 2), (3, 4)]
+_OFFDIAGONAL_PAIRS: list[tuple[int, int]] = [(1, 3), (1, 4), (2, 3), (2, 4)]
 
 
 def main() -> None:
     args = parse_args()
     rd = Path(args.results_dir)
 
-    # Plain scatter (always).
-    make_rho_grid_figure(T=args.T, results_dir=rd,
-                         out_path=Path(args.out) if args.out else None,
-                         with_structure=False)
+    pair_sets: list[tuple[list[tuple[int, int]], str]] = [(_STANDARD_PAIRS, "")]
+    if args.off_diagonal:
+        pair_sets.append((_OFFDIAGONAL_PAIRS, "_offdiag"))
 
-    # Combined-overlay version.
-    if args.with_structure:
-        make_rho_grid_figure(T=args.T, results_dir=rd,
-                             out_path=None, with_structure=True)
-
-    # Split 4-row version.
-    if args.split:
-        make_rho_grid_figure_split(T=args.T, results_dir=rd)
+    for pairs, sfx in pair_sets:
+        # Plain scatter.
+        make_rho_grid_figure(
+            T=args.T, results_dir=rd,
+            out_path=Path(args.out) if (args.out and not sfx) else None,
+            with_structure=False, pc_pairs=pairs, suffix=sfx,
+        )
+        # Combined-overlay.
+        if args.with_structure:
+            make_rho_grid_figure(
+                T=args.T, results_dir=rd, out_path=None,
+                with_structure=True, pc_pairs=pairs, suffix=sfx,
+            )
+        # Split (grid / ring separately).
+        if args.split:
+            make_rho_grid_figure_split(
+                T=args.T, results_dir=rd, pc_pairs=pairs, suffix=sfx,
+            )
 
 
 if __name__ == "__main__":
