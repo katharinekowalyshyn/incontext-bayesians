@@ -29,11 +29,39 @@ class LLMMeasurements:
     vocab_masses: dict[int, float]
 
 
+@dataclass
+class SemanticPriorTable:
+    """LLM no-context semantic prior p(next_word | current_word)."""
+
+    words: tuple[str, ...]
+    distributions: dict[str, np.ndarray]
+    vocab_masses: dict[str, float]
+
+    def get_semantic_prior_distribution(self, current_word: str) -> dict[str, float]:
+        probs = self.distributions[current_word]
+        return {word: float(prob) for word, prob in zip(self.words, probs)}
+
+    def distribution_array(self, current_word: str) -> np.ndarray:
+        return self.distributions[current_word]
+
+    def to_json_dict(self) -> dict:
+        return {
+            "words": list(self.words),
+            "rows": {
+                current_word: {
+                    "distribution": self.get_semantic_prior_distribution(current_word),
+                    "vocab_mass": float(self.vocab_masses[current_word]),
+                }
+                for current_word in self.words
+            },
+        }
+
+
 def load_model(
     model_name: str = DEFAULT_CONFIG.model_name,
     cache_dir: str | None = None,
     device: str | None = None,
-    dtype: torch.dtype = torch.float16,
+    dtype: str | torch.dtype = "float16",
 ):
     """Load a TransformerLens model in float16 to halve GPU memory (~16 GB vs ~32 GB)."""
 
@@ -41,6 +69,7 @@ def load_model(
         cache_dir = os.environ.get("HF_HOME", None)
     if device is None:
         device = default_device()
+    dtype = resolve_dtype(dtype)
     print(f"Loading {model_name} on device={device}, dtype={dtype}...")
     model = HookedTransformer.from_pretrained_no_processing(
         model_name,
@@ -53,6 +82,19 @@ def load_model(
     return model
 
 
+def resolve_dtype(dtype: str | torch.dtype) -> torch.dtype:
+    if isinstance(dtype, torch.dtype):
+        return dtype
+    dtype_map = {
+        "float16": torch.float16,
+        "bfloat16": torch.bfloat16,
+        "float32": torch.float32,
+    }
+    if dtype not in dtype_map:
+        raise ValueError(f"Unsupported dtype {dtype!r}. Choose one of {sorted(dtype_map)}.")
+    return dtype_map[dtype]
+
+
 def default_device() -> str:
     """Prefer CUDA, then Apple MPS, then CPU."""
 
@@ -61,6 +103,48 @@ def default_device() -> str:
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return "mps"
     return "cpu"
+
+
+@torch.no_grad()
+def semantic_prior_table(
+    model,
+    words: Sequence[str] = WORDS,
+    token_map: Mapping[str, int] | None = None,
+) -> SemanticPriorTable:
+    """Estimate the pretrained semantic prior over graph words.
+
+    Prompt format is the same token convention used by the main experiment:
+    ``[BOS]`` followed by the single graph-word token for the current word.
+    The returned distributions are renormalized over the 16 controlled words.
+    """
+
+    vocab = validate_vocabulary(words)
+    tok_map = dict(build_token_map(model, vocab) if token_map is None else token_map)
+    word_token_ids = torch.tensor(
+        [tok_map[word] for word in vocab],
+        dtype=torch.long,
+        device=model.cfg.device,
+    )
+
+    distributions: dict[str, np.ndarray] = {}
+    vocab_masses: dict[str, float] = {}
+    bos = model.tokenizer.bos_token_id
+
+    for current_word in vocab:
+        input_ids = [bos, tok_map[current_word]]
+        tokens = torch.tensor([input_ids], dtype=torch.long).to(model.cfg.device)
+        logits = model(tokens)
+        probs = torch.softmax(logits[0, -1, :], dim=-1)
+        graph_probs = probs[word_token_ids]
+        vocab_mass = float(graph_probs.sum().item())
+        if vocab_mass <= 0.0:
+            dist = np.full(len(vocab), 1.0 / len(vocab), dtype=float)
+        else:
+            dist = (graph_probs / vocab_mass).detach().cpu().numpy()
+        distributions[current_word] = dist
+        vocab_masses[current_word] = vocab_mass
+
+    return SemanticPriorTable(vocab, distributions, vocab_masses)
 
 
 @torch.no_grad()

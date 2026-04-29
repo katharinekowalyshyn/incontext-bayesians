@@ -1,0 +1,317 @@
+{
+  "input_path": "src/secondary_experiments/results/all_graphs/grid/llm_results.json",
+  "dirichlet_alpha": 1.2,
+  "baselines": [
+    "ideal_bayes",
+    "edge_learner",
+    "cache",
+    "semantic_prior"
+  ],
+  "per_context_length": [
+    {
+      "context_length": 1,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.1406537695273177,
+        "edge_learner": 0.12456501776938968,
+        "cache": 0.13033252089803926,
+        "semantic_prior": 0.6044486918052534
+      },
+      "kl_llm_mixture": 0.3146460045776986,
+      "kl_llm_individual": {
+        "ideal_bayes": 3.114424349513319,
+        "edge_learner": 3.381330906685607,
+        "cache": 2.1073850176290203,
+        "semantic_prior": 2.500951405600549e-07
+      }
+    },
+    {
+      "context_length": 2,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.517560906204685,
+        "edge_learner": 0.16884533492471207,
+        "cache": 0.13615555503175605,
+        "semantic_prior": 0.17743820383884704
+      },
+      "kl_llm_mixture": 0.8787268148627303,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.8862395128590866,
+        "edge_learner": 1.5458945103644965,
+        "cache": 2.1894742066388337,
+        "semantic_prior": 4.707099265488901
+      }
+    },
+    {
+      "context_length": 5,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.3164376423920054,
+        "edge_learner": 0.21387890286180852,
+        "cache": 0.3176977215916257,
+        "semantic_prior": 0.15198573315456046
+      },
+      "kl_llm_mixture": 0.4688163938280379,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.5820743137871703,
+        "edge_learner": 0.7645717574552128,
+        "cache": 0.3866877528125122,
+        "semantic_prior": 4.039695770729141
+      }
+    },
+    {
+      "context_length": 10,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.22851899710925844,
+        "edge_learner": 0.34670117985295995,
+        "cache": 0.2128063771976326,
+        "semantic_prior": 0.21197344584014902
+      },
+      "kl_llm_mixture": 1.3842693206291143,
+      "kl_llm_individual": {
+        "ideal_bayes": 2.572109985926009,
+        "edge_learner": 1.2383740936239478,
+        "cache": 1.6524256331140272,
+        "semantic_prior": 3.7681056951527077
+      }
+    },
+    {
+      "context_length": 20,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.34869805587092323,
+        "edge_learner": 0.3143938123510542,
+        "cache": 0.19686742279908756,
+        "semantic_prior": 0.1400407089789351
+      },
+      "kl_llm_mixture": 1.2749983201428747,
+      "kl_llm_individual": {
+        "ideal_bayes": 1.6341472743457541,
+        "edge_learner": 1.1672870470686478,
+        "cache": 1.8521861223522853,
+        "semantic_prior": 2.46759932007291
+      }
+    },
+    {
+      "context_length": 50,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.18045749609864511,
+        "edge_learner": 0.34640458308651306,
+        "cache": 0.3017477423422886,
+        "semantic_prior": 0.17139017847255336
+      },
+      "kl_llm_mixture": 0.30208129302582315,
+      "kl_llm_individual": {
+        "ideal_bayes": 1.729085684761227,
+        "edge_learner": 0.2547085625755178,
+        "cache": 0.30143375209472767,
+        "semantic_prior": 3.781925445677185
+      }
+    },
+    {
+      "context_length": 100,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.20810055084650012,
+        "edge_learner": 0.3159791306294969,
+        "cache": 0.2713914441863543,
+        "semantic_prior": 0.20452887433764882
+      },
+      "kl_llm_mixture": 0.2291967761940722,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.8462320031341496,
+        "edge_learner": 0.4335541527146365,
+        "cache": 0.43441763218028284,
+        "semantic_prior": 2.288635576368197
+      }
+    },
+    {
+      "context_length": 200,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.2357845182355592,
+        "edge_learner": 0.355978818160635,
+        "cache": 0.24886412885180448,
+        "semantic_prior": 0.15937253475200142
+      },
+      "kl_llm_mixture": 0.416760273952064,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.7619084353502376,
+        "edge_learner": 0.42531742315457544,
+        "cache": 0.5666714406085291,
+        "semantic_prior": 2.9817316137059438
+      }
+    },
+    {
+      "context_length": 400,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.2578963640052164,
+        "edge_learner": 0.27396670969725373,
+        "cache": 0.25790742414590406,
+        "semantic_prior": 0.21022950215162597
+      },
+      "kl_llm_mixture": 0.14422399460105473,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.5875136035840658,
+        "edge_learner": 0.4213540819183763,
+        "cache": 0.45345406891403117,
+        "semantic_prior": 2.7180733874821903
+      }
+    },
+    {
+      "context_length": 800,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.2740228940706428,
+        "edge_learner": 0.29239253314804386,
+        "cache": 0.30621356889317886,
+        "semantic_prior": 0.12737100388813466
+      },
+      "kl_llm_mixture": 0.15877896430822963,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.15970310383667224,
+        "edge_learner": 0.10790191775637968,
+        "cache": 0.07685757909414666,
+        "semantic_prior": 5.245576675794987
+      }
+    },
+    {
+      "context_length": 1400,
+      "n_examples": 1,
+      "weights": {
+        "ideal_bayes": 0.2964386832158255,
+        "edge_learner": 0.2861602319635756,
+        "cache": 0.2913051189347811,
+        "semantic_prior": 0.126095965885818
+      },
+      "kl_llm_mixture": 0.12610073477377953,
+      "kl_llm_individual": {
+        "ideal_bayes": 0.04576036421899153,
+        "edge_learner": 0.06908867514611575,
+        "cache": 0.0718462502018995,
+        "semantic_prior": 3.6644461438454714
+      }
+    }
+  ],
+  "smooth_context_model": {
+    "mean_kl_llm_mixture": 0.6093390960602204,
+    "log_t_mean": 3.7578833461714196,
+    "log_t_std": 2.3287275244757706,
+    "a": {
+      "ideal_bayes": 0.15915969927007134,
+      "edge_learner": 0.16582622024538976,
+      "cache": 0.022877953667010578,
+      "semantic_prior": -0.16571560873001856
+    },
+    "b": {
+      "ideal_bayes": -0.011186032385424299,
+      "edge_learner": 0.2515355697633902,
+      "cache": 0.2678222403714305,
+      "semantic_prior": -0.2618230230951087
+    },
+    "weights_by_context_length": [
+      {
+        "context_length": 1,
+        "weights": {
+          "ideal_bayes": 0.30322124528430394,
+          "edge_learner": 0.199771380928456,
+          "cache": 0.16866988143650416,
+          "semantic_prior": 0.3283374923507358
+        }
+      },
+      {
+        "context_length": 2,
+        "weights": {
+          "ideal_bayes": 0.3010383290536499,
+          "edge_learner": 0.2144652537511953,
+          "cache": 0.18195607259561,
+          "semantic_prior": 0.3025403445995448
+        }
+      },
+      {
+        "context_length": 5,
+        "weights": {
+          "ideal_bayes": 0.2962807680995914,
+          "edge_learner": 0.23406327130416282,
+          "cache": 0.19986005366362994,
+          "semantic_prior": 0.2697959069326159
+        }
+      },
+      {
+        "context_length": 10,
+        "weights": {
+          "ideal_bayes": 0.29134257625951243,
+          "edge_learner": 0.24888301895738968,
+          "cache": 0.21354693427067833,
+          "semantic_prior": 0.24622747051241958
+        }
+      },
+      {
+        "context_length": 20,
+        "weights": {
+          "ideal_bayes": 0.2853405384669123,
+          "edge_learner": 0.2635823269009944,
+          "cache": 0.2272582761822617,
+          "semantic_prior": 0.22381885844983151
+        }
+      },
+      {
+        "context_length": 50,
+        "weights": {
+          "ideal_bayes": 0.275942950351331,
+          "edge_learner": 0.28266157674686576,
+          "cache": 0.2452750163238317,
+          "semantic_prior": 0.1961204565779716
+        }
+      },
+      {
+        "context_length": 100,
+        "weights": {
+          "ideal_bayes": 0.26787154632246446,
+          "edge_learner": 0.2967123066365979,
+          "cache": 0.2587184743203991,
+          "semantic_prior": 0.17669767272053855
+        }
+      },
+      {
+        "context_length": 200,
+        "weights": {
+          "ideal_bayes": 0.2591047769885149,
+          "edge_learner": 0.31034581710207965,
+          "cache": 0.27192123475549435,
+          "semantic_prior": 0.15862817115391117
+        }
+      },
+      {
+        "context_length": 400,
+        "weights": {
+          "ideal_bayes": 0.24976698808493272,
+          "edge_learner": 0.32349458423045446,
+          "cache": 0.2848194132294579,
+          "semantic_prior": 0.14191901445515495
+        }
+      },
+      {
+        "context_length": 800,
+        "weights": {
+          "ideal_bayes": 0.23998206373289785,
+          "edge_learner": 0.3361029022225897,
+          "cache": 0.29735837946569,
+          "semantic_prior": 0.12655665457882245
+        }
+      },
+      {
+        "context_length": 1400,
+        "weights": {
+          "ideal_bayes": 0.23183821369452415,
+          "edge_learner": 0.3458577294084505,
+          "cache": 0.3071886503497257,
+          "semantic_prior": 0.11511540654729967
+        }
+      }
+    ]
+  }
+}

@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TypeAlias
 
-import torch
-
 
 MixRatios: TypeAlias = tuple[tuple[str, float], ...]
 
@@ -22,7 +20,7 @@ class ExperimentConfig:
 
     model_name: str = "meta-llama/Llama-3.1-8B"
     device: str | None = None
-    dtype: torch.dtype = torch.float16
+    dtype: str = "float16"
     candidate_graphs: tuple[str, ...] = (
         "grid",
         "ring",
@@ -42,6 +40,10 @@ class ExperimentConfig:
     seq_len: int = 1400
     epsilon: float = 0.05
     alpha: float = 0.1
+    edge_prior_prob: float = 0.2
+    edge_prior_strength: float = 2.0
+    edge_alpha: float = 0.1
+    semantic_shift_eps: float = 1e-12
     seeds: tuple[int, ...] = tuple(range(16))
     output_dir: Path = field(default_factory=lambda: RESULTS_DIR)
 

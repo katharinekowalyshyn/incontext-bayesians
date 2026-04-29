@@ -102,6 +102,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seeds", type=int, nargs="+", default=list(DEFAULT_CONFIG.seeds))
     parser.add_argument("--epsilon", type=float, default=DEFAULT_CONFIG.epsilon)
     parser.add_argument("--alpha", type=float, default=DEFAULT_CONFIG.alpha)
+    parser.add_argument("--edge-prior-prob", type=float, default=DEFAULT_CONFIG.edge_prior_prob)
+    parser.add_argument("--edge-prior-strength", type=float, default=DEFAULT_CONFIG.edge_prior_strength)
+    parser.add_argument("--edge-alpha", type=float, default=DEFAULT_CONFIG.edge_alpha)
+    parser.add_argument("--semantic-shift-eps", type=float, default=DEFAULT_CONFIG.semantic_shift_eps)
     parser.add_argument(
         "--dtype",
         default="float16",
@@ -191,6 +195,14 @@ def main() -> None:
             str(args.epsilon),
             "--alpha",
             str(args.alpha),
+            "--edge-prior-prob",
+            str(args.edge_prior_prob),
+            "--edge-prior-strength",
+            str(args.edge_prior_strength),
+            "--edge-alpha",
+            str(args.edge_alpha),
+            "--semantic-shift-eps",
+            str(args.semantic_shift_eps),
             "--eval-lengths",
             *[str(x) for x in args.eval_lengths],
             "--seeds",
