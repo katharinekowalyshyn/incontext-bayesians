@@ -186,6 +186,7 @@ def plot_pca_snapshots(
     graph: UndirectedGraph,
     out_path: str | Path,
     words: Sequence[str] = WORDS,
+    overlay_graphs: Mapping[str, UndirectedGraph] | None = None,
 ) -> Path:
     """Paper-style PCA snapshots: PC1/2 and PC3/4 for each T."""
 
@@ -213,6 +214,20 @@ def plot_pca_snapshots(
         H = H_full[present]
         words_p = [word for word, ok in zip(words, present) if ok]
         A_p = A[np.ix_(present, present)]
+
+        # Build combined adjacency for edge overlay: OR of primary + overlay graphs.
+        A_draw = A_p.copy()
+        _overlay_colors: dict[str, str] = {}
+        OVERLAY_PALETTE = ["#E65100", "#2E7D32", "#6A1B9A", "#00838F"]
+        if overlay_graphs:
+            for (gname, og), col_hex in zip(
+                overlay_graphs.items(), OVERLAY_PALETTE
+            ):
+                Ao = og.build_adjacency_matrix()
+                Ao_p = Ao[np.ix_(present, present)]
+                A_draw = np.maximum(A_draw, Ao_p)
+                _overlay_colors[gname] = col_hex
+
         pca_dirs = compute_top_k_pca(H, k=4)
         projected = H @ pca_dirs.T
         for row, (lo, hi) in enumerate([(0, 2), (2, 4)]):
@@ -222,7 +237,7 @@ def plot_pca_snapshots(
                 axes[row, col],
                 projected[:, lo:hi],
                 words_p,
-                A_p,
+                A_draw,
                 pc_x=lo + 1,
                 pc_y=lo + 2,
                 title=f"T = {T}{tag}",
@@ -303,7 +318,7 @@ def sequence_activations(
     hook_name = f"blocks.{layer}.hook_resid_pre"
     with torch.no_grad():
         _, cache = model.run_with_cache(tokens, names_filter=[hook_name])
-    acts = cache[hook_name][0, 1:, :].detach().cpu().numpy()
+    acts = cache[hook_name][0, 1:, :].detach().cpu().float().numpy()
     if len(acts) != min(len(sequence), model.cfg.n_ctx - 1):
         raise RuntimeError(
             f"Activation length {len(acts)} does not match tokenized sequence length."
@@ -445,13 +460,13 @@ def run_pca_analysis(
     energy_Ts: Sequence[int] = DEFAULT_ENERGY_T,
     window: int = DEFAULT_WINDOW,
 ) -> list[Path]:
-    """Run PCA analysis and write plots/NPZ files."""
+    """Run PCA analysis for pure-graph conditions and write plots/NPZ files."""
 
     from .llm_inference import load_model
 
     graph_map = build_candidate_graphs()
     selected_true_graphs = tuple(config.true_graphs if true_graphs is None else true_graphs)
-    model = load_model(config.model_name, device=config.device)
+    model = load_model(config.model_name, device=config.device, dtype=config.dtype)
     token_map = build_token_map(model)
 
     written: list[Path] = []
@@ -501,4 +516,94 @@ def run_pca_analysis(
             )
         )
         written.append(save_pca_npz(result, Path(config.output_dir) / f"pca_{true_graph}.npz"))
+    return written
+
+
+def run_pca_analysis_mixed(
+    config: ExperimentConfig = DEFAULT_CONFIG,
+    mix_ratios: Mapping[str, float] | None = None,
+    mix_name: str = "mix",
+    layer: int = DEFAULT_LAYER,
+    snapshot_Ts: Sequence[int] = DEFAULT_SNAPSHOT_T,
+    energy_Ts: Sequence[int] = DEFAULT_ENERGY_T,
+    window: int = DEFAULT_WINDOW,
+) -> list[Path]:
+    """Run PCA analysis for a mixed-graph condition and write plots/NPZ files.
+
+    ``mix_ratios`` maps graph name → weight, e.g. ``{"grid": 70.0, "ring": 30.0}``.
+    The weights are normalised internally; they can be percentages or fractions.
+
+    The PCA snapshot plot draws edges for all mixed graphs as separate overlays
+    so both structures are visible in the projected class-mean space.
+    """
+    from .llm_inference import load_model
+    from .sequence_generation import generate_mixed_sequence
+
+    if mix_ratios is None:
+        raise ValueError("mix_ratios is required for run_pca_analysis_mixed.")
+
+    graph_map = build_candidate_graphs()
+    # Normalise weights to fractions so generate_mixed_sequence is happy.
+    total_w = sum(mix_ratios.values())
+    norm_ratios = {k: v / total_w for k, v in mix_ratios.items()}
+
+    model = load_model(config.model_name, device=config.device, dtype=config.dtype)
+    token_map = build_token_map(model)
+
+    # Dominant graph = highest-weight graph in the mix (used as primary for plot title).
+    dominant = max(norm_ratios, key=lambda k: norm_ratios[k])
+    dominant_graph = graph_map[dominant]
+    # All mixed graphs get their edges overlaid (skip dominant since it's the primary).
+    overlay_graphs = {
+        k: graph_map[k] for k in norm_ratios if k != dominant
+    }
+
+    per_seed: list[PCAResult] = []
+    for idx, seed in enumerate(config.seeds, start=1):
+        rng = np.random.default_rng(seed)
+        print(f"  seed={seed} ({idx}/{len(config.seeds)}): generating mixed sequence {dict(mix_ratios)}...")
+        sequence, _ = generate_mixed_sequence(
+            graph_map,
+            norm_ratios,
+            seq_len=config.seq_len,
+            seed=seed,
+        )
+        print(f"  seed={seed}: extracting layer {layer} activations...")
+        acts = sequence_activations(model, sequence, layer=layer, token_map=token_map)
+        del rng
+        print(f"  seed={seed}: computing PCA snapshots and energy curves...")
+        per_seed.append(
+            pca_result_for_sequence(
+                sequence=sequence[: len(acts)],
+                activations=acts,
+                true_graph=mix_name,
+                graphs=graph_map,
+                layer=layer,
+                seq_len=config.seq_len,
+                window=window,
+                snapshot_Ts=snapshot_Ts,
+                energy_Ts=energy_Ts,
+            )
+        )
+
+    print(f"[pca] {mix_name}: averaging {len(per_seed)} seed results...")
+    result = average_pca_results(per_seed)
+    print(f"[pca] {mix_name}: writing plots and NPZ...")
+    out_dir = Path(config.output_dir)
+    written: list[Path] = []
+    written.append(
+        plot_pca_snapshots(
+            result,
+            graph=dominant_graph,
+            out_path=out_dir / f"pca_snapshots_{mix_name}.png",
+            overlay_graphs=overlay_graphs,
+        )
+    )
+    written.append(
+        plot_dirichlet_energy_overlay(
+            result,
+            out_path=out_dir / f"dirichlet_energy_{mix_name}.png",
+        )
+    )
+    written.append(save_pca_npz(result, out_dir / f"pca_{mix_name}.npz"))
     return written
