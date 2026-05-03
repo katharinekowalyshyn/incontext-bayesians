@@ -1,4 +1,11 @@
-"""Global unigram Dirichlet-multinomial baseline."""
+"""Global unigram Dirichlet–multinomial baseline.
+
+Populates ``unigram_distribution`` in ``experiment.baseline_rows_for_sequence`` and is the
+``unigram`` component of ``mixture_analysis.BASELINES``.  Smoothing ``alpha`` matches
+``ExperimentConfig.alpha`` (same pseudocount as the cache baseline).
+
+See class docstring for the prediction rule.
+"""
 
 from __future__ import annotations
 

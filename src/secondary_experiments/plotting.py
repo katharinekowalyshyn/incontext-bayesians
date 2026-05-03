@@ -22,6 +22,7 @@ BASELINE_STYLES = {
     "bayes": ("#1976D2", "Bayes"),
     "edge_learner": ("#2E7D32", "Edge learner"),
     "cache": ("#C62828", "Cache"),
+    "unigram": ("#00838F", "Unigram Dirichlet"),
     "semantic_prior": ("#6A1B9A", "Semantic prior"),
 }
 
@@ -200,6 +201,7 @@ def plot_neighbor_probability_comparison(rows: Sequence[dict], out_dir: str | Pa
         lengths_b, means_b, sems_b = _mean_sem_by_length(graph_rows, "bayes_neighbor_prob")
         lengths_c, means_c, sems_c = _mean_sem_by_length(graph_rows, "cache_neighbor_prob")
         lengths_e, means_e, sems_e = _mean_sem_by_length(graph_rows, "edge_learner_neighbor_prob")
+        lengths_u, means_u, sems_u = _mean_sem_by_length(graph_rows, "unigram_neighbor_prob")
         if not lengths_b or not lengths_c:
             continue
 
@@ -210,6 +212,8 @@ def plot_neighbor_probability_comparison(rows: Sequence[dict], out_dir: str | Pa
         if lengths_e:
             _plot_mean_sem(ax, lengths_e, means_e, sems_e, color="#2E7D32", label="Edge learner")
         _plot_mean_sem(ax, lengths_c, means_c, sems_c, color="#C62828", label="Cache")
+        if lengths_u:
+            _plot_mean_sem(ax, lengths_u, means_u, sems_u, color="#00838F", label="Unigram Dirichlet")
         ax.set_xscale("log")
         ax.set_ylim(0, 1.02)
         ax.set_xlabel("Context length")

@@ -19,6 +19,7 @@ from .sequence_generation import (
     generate_sequence,
     source_labels_for_pure_sequence,
 )
+from .unigram_dirichlet import UnigramDirichletMultinomialBaseline
 from .vocabulary import WORDS, validate_vocabulary
 
 
@@ -67,6 +68,7 @@ def baseline_rows_for_sequence(
     graphs: Mapping[str, UndirectedGraph],
     observer: BayesianGraphObserver,
     cache: CacheBaseline,
+    unigram: UnigramDirichletMultinomialBaseline,
     eval_lengths: Sequence[int],
     llm_distributions: Mapping[int, np.ndarray] | None = None,
     llm_neighbor_probs: Mapping[int, float] | None = None,
@@ -99,6 +101,7 @@ def baseline_rows_for_sequence(
         context = list(sequence[:L])
         bayes_dist = observer.next_token_distribution(context)
         cache_dist = cache.next_token_distribution(context)
+        unigram_dist = unigram.next_token_distribution(context)
         edge_learner = fit_edge_learner(
             context,
             words=vocab,
@@ -125,6 +128,7 @@ def baseline_rows_for_sequence(
             "source_graph": source_graph,
             "bayes_distribution": distribution_to_dict(vocab, bayes_dist),
             "cache_distribution": distribution_to_dict(vocab, cache_dist),
+            "unigram_distribution": distribution_to_dict(vocab, unigram_dist),
             "edge_learner_distribution": distribution_to_dict(vocab, edge_dist),
             "edge_learner_top_edges": [
                 {"word1": word1, "word2": word2, "prob": prob}
@@ -132,6 +136,9 @@ def baseline_rows_for_sequence(
             ],
             "bayes_neighbor_prob": bayes_neighbor_prob,
             "cache_neighbor_prob": cache_neighbor_prob,
+            "unigram_neighbor_prob": neighbor_probability(
+                neighbor_graph, context[-1], vocab, unigram_dist
+            ),
             "edge_learner_neighbor_prob": neighbor_probability(
                 neighbor_graph, context[-1], vocab, edge_dist
             ),
@@ -156,6 +163,11 @@ def baseline_rows_for_sequence(
                     "mse": mse(llm_dist, edge_dist),
                     "corr": finite_or_none(pearson_corr(llm_dist, edge_dist)),
                 },
+                "unigram": {
+                    "kl": kl_divergence(llm_dist, unigram_dist),
+                    "mse": mse(llm_dist, unigram_dist),
+                    "corr": finite_or_none(pearson_corr(llm_dist, unigram_dist)),
+                },
             }
             row.update(
                 {
@@ -167,12 +179,15 @@ def baseline_rows_for_sequence(
                     "kl_llm_bayes": metric_values["bayes"]["kl"],
                     "kl_llm_cache": metric_values["cache"]["kl"],
                     "kl_llm_edge_learner": metric_values["edge_learner"]["kl"],
+                    "kl_llm_unigram": metric_values["unigram"]["kl"],
                     "mse_llm_bayes": metric_values["bayes"]["mse"],
                     "mse_llm_cache": metric_values["cache"]["mse"],
                     "mse_llm_edge_learner": metric_values["edge_learner"]["mse"],
+                    "mse_llm_unigram": metric_values["unigram"]["mse"],
                     "corr_llm_bayes": metric_values["bayes"]["corr"],
                     "corr_llm_cache": metric_values["cache"]["corr"],
                     "corr_llm_edge_learner": metric_values["edge_learner"]["corr"],
+                    "corr_llm_unigram": metric_values["unigram"]["corr"],
                 }
             )
             if semantic_prior is not None:
@@ -233,6 +248,7 @@ def run_baseline_only(
         epsilon=config.epsilon,
     )
     cache = CacheBaseline(alpha=config.alpha)
+    unigram = UnigramDirichletMultinomialBaseline(alpha=config.alpha)
 
     rows: list[dict] = []
     mix_ratios = config_mix_dict(config)
@@ -269,6 +285,7 @@ def run_baseline_only(
                     graphs=graph_map,
                     observer=observer,
                     cache=cache,
+                    unigram=unigram,
                     eval_lengths=config.eval_lengths,
                     source_graphs=source_graphs,
                     config=config,
@@ -289,6 +306,7 @@ def run_with_llm(config: ExperimentConfig = DEFAULT_CONFIG) -> list[dict]:
         epsilon=config.epsilon,
     )
     cache = CacheBaseline(alpha=config.alpha)
+    unigram = UnigramDirichletMultinomialBaseline(alpha=config.alpha)
 
     model = load_model(config.model_name, device=config.device, dtype=config.dtype)
     token_map = build_token_map(model)
@@ -346,6 +364,7 @@ def run_with_llm(config: ExperimentConfig = DEFAULT_CONFIG) -> list[dict]:
                     graphs=graph_map,
                     observer=observer,
                     cache=cache,
+                    unigram=unigram,
                     eval_lengths=config.eval_lengths,
                     llm_distributions=llm.distributions,
                     llm_neighbor_probs=llm.neighbor_probs,

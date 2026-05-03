@@ -22,6 +22,7 @@ class MixtureAnalysisTest(unittest.TestCase):
         p_edge = np.full(16, 1 / 16)
         p_cache = np.array([0.1, 0.6] + [0.3 / 14] * 14)
         p_sem = np.array([0.2, 0.2, 0.4] + [0.2 / 13] * 13)
+        p_uni = np.full(16, 1 / 16)
         rows = []
         for seed in range(3):
             rows.append({
@@ -30,6 +31,7 @@ class MixtureAnalysisTest(unittest.TestCase):
                 "bayes_distribution": dist_dict(p_bayes),
                 "edge_learner_distribution": dist_dict(p_edge),
                 "cache_distribution": dist_dict(p_cache),
+                "unigram_distribution": dist_dict(p_uni),
                 "semantic_prior_distribution": dist_dict(p_sem),
             })
         fit = fit_by_context_length(rows, WORDS, alpha=1.0, n_steps=400, lr=0.05)[0]

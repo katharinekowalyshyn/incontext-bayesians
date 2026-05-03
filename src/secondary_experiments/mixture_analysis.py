@@ -18,6 +18,7 @@ BASELINES: tuple[tuple[str, str], ...] = (
     ("ideal_bayes", "bayes_distribution"),
     ("edge_learner", "edge_learner_distribution"),
     ("cache", "cache_distribution"),
+    ("unigram", "unigram_distribution"),
     ("semantic_prior", "semantic_prior_distribution"),
 )
 
@@ -25,6 +26,7 @@ BASELINE_COLORS = {
     "ideal_bayes": "#1976D2",
     "edge_learner": "#2E7D32",
     "cache": "#C62828",
+    "unigram": "#00838F",
     "semantic_prior": "#6A1B9A",
     "mixture": "#111111",
 }
@@ -62,8 +64,10 @@ def usable_rows(rows: Sequence[dict]) -> tuple[list[dict], tuple[str, ...]]:
         kept.append(row)
     if words is None:
         raise ValueError(
-            "No rows contain llm_distribution plus all four baseline distributions. "
-            "Run LLM inference with semantic prior metrics first."
+            "No rows contain llm_distribution plus every baseline distribution "
+            f"({[key for _, key in BASELINES]}). "
+            "Re-run LLM inference (experiment.py) so each row includes unigram_distribution "
+            "and semantic_prior_distribution."
         )
     return kept, words
 

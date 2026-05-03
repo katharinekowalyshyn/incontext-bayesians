@@ -181,6 +181,67 @@ def _draw_scatter(
     ax.grid(alpha=0.25)
 
 
+def _fill_pca_snapshot_column(
+    ax_pc12: plt.Axes,
+    ax_pc34: plt.Axes,
+    T: int,
+    result: PCAResult,
+    graph: UndirectedGraph,
+    words: Sequence[str],
+    overlay_graphs: Mapping[str, UndirectedGraph] | None,
+    show_labels: bool,
+) -> None:
+    """Draw PC1/2 (top) and PC3/4 (bottom) for one snapshot context length ``T``."""
+
+    H_full = result.class_means_by_T[T]
+    present = result.present_by_T[T]
+    n_present = int(present.sum())
+    if n_present < 3:
+        for ax in (ax_pc12, ax_pc34):
+            ax.text(
+                0.5,
+                0.5,
+                f"T={T}: only {n_present} words seen",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_axis_off()
+        return
+
+    A = graph.build_adjacency_matrix()
+    H = H_full[present]
+    words_p = [word for word, ok in zip(words, present) if ok]
+    A_p = A[np.ix_(present, present)]
+
+    A_draw = A_p.copy()
+    if overlay_graphs:
+        for gname, og in overlay_graphs.items():
+            Ao = og.build_adjacency_matrix()
+            Ao_p = Ao[np.ix_(present, present)]
+            A_draw = np.maximum(A_draw, Ao_p)
+
+    pca_dirs = compute_top_k_pca(H, k=4)
+    projected = H @ pca_dirs.T
+    n_missing = len(words) - n_present
+    tag = "" if n_missing == 0 else f" ({n_missing} unseen)"
+    for ax, (lo, hi) in zip(
+        (ax_pc12, ax_pc34),
+        [(0, 2), (2, 4)],
+        strict=True,
+    ):
+        _draw_scatter(
+            ax,
+            projected[:, lo:hi],
+            words_p,
+            A_draw,
+            pc_x=lo + 1,
+            pc_y=lo + 2,
+            title=f"T = {T}{tag}",
+            show_labels=show_labels,
+        )
+
+
 def plot_pca_snapshots(
     result: PCAResult,
     graph: UndirectedGraph,
@@ -192,57 +253,18 @@ def plot_pca_snapshots(
 
     Ts = sorted(result.class_means_by_T)
     fig, axes = plt.subplots(2, len(Ts), figsize=(4.2 * len(Ts), 8.5), squeeze=False)
-    A = graph.build_adjacency_matrix()
 
     for col, T in enumerate(Ts):
-        H_full = result.class_means_by_T[T]
-        present = result.present_by_T[T]
-        n_present = int(present.sum())
-        if n_present < 3:
-            for row in range(2):
-                axes[row, col].text(
-                    0.5,
-                    0.5,
-                    f"T={T}: only {n_present} words seen",
-                    ha="center",
-                    va="center",
-                    transform=axes[row, col].transAxes,
-                )
-                axes[row, col].set_axis_off()
-            continue
-
-        H = H_full[present]
-        words_p = [word for word, ok in zip(words, present) if ok]
-        A_p = A[np.ix_(present, present)]
-
-        # Build combined adjacency for edge overlay: OR of primary + overlay graphs.
-        A_draw = A_p.copy()
-        _overlay_colors: dict[str, str] = {}
-        OVERLAY_PALETTE = ["#E65100", "#2E7D32", "#6A1B9A", "#00838F"]
-        if overlay_graphs:
-            for (gname, og), col_hex in zip(
-                overlay_graphs.items(), OVERLAY_PALETTE
-            ):
-                Ao = og.build_adjacency_matrix()
-                Ao_p = Ao[np.ix_(present, present)]
-                A_draw = np.maximum(A_draw, Ao_p)
-                _overlay_colors[gname] = col_hex
-
-        pca_dirs = compute_top_k_pca(H, k=4)
-        projected = H @ pca_dirs.T
-        for row, (lo, hi) in enumerate([(0, 2), (2, 4)]):
-            n_missing = len(words) - n_present
-            tag = "" if n_missing == 0 else f" ({n_missing} unseen)"
-            _draw_scatter(
-                axes[row, col],
-                projected[:, lo:hi],
-                words_p,
-                A_draw,
-                pc_x=lo + 1,
-                pc_y=lo + 2,
-                title=f"T = {T}{tag}",
-                show_labels=(col == 0),
-            )
+        _fill_pca_snapshot_column(
+            axes[0, col],
+            axes[1, col],
+            T,
+            result,
+            graph,
+            words,
+            overlay_graphs,
+            show_labels=(col == 0),
+        )
 
     fig.suptitle(
         f"Llama class-mean PCA: true {result.true_graph}, layer {result.layer}, "
@@ -449,6 +471,119 @@ def save_pca_npz(result: PCAResult, out_path: str | Path) -> Path:
         payload[f"energy_Ts_{graph_name}"] = Ts
         payload[f"energies_{graph_name}"] = energies
     np.savez(out, **payload)
+    return out
+
+
+def load_pca_npz(path: str | Path) -> PCAResult:
+    """Load ``PCAResult`` written by :func:`save_pca_npz`."""
+
+    path = Path(path)
+    z = np.load(path, allow_pickle=True)
+    true_graph = str(z["true_graph"].item())
+    layer = int(z["layer"].item())
+    seq_len = int(z["seq_len"].item())
+    window = int(z["window"].item())
+    snapshot_Ts = tuple(int(x) for x in z["snapshot_Ts"])
+    energy_Ts = tuple(int(x) for x in z["energy_Ts"])
+
+    class_means_by_T: dict[int, np.ndarray] = {}
+    present_by_T: dict[int, np.ndarray] = {}
+    prefix_means = "class_means_T"
+    prefix_present = "present_T"
+    for key in z.files:
+        if key.startswith(prefix_means):
+            t_str = key[len(prefix_means) :]
+            class_means_by_T[int(t_str)] = np.asarray(z[key], dtype=float)
+        elif key.startswith(prefix_present):
+            t_str = key[len(prefix_present) :]
+            present_by_T[int(t_str)] = np.asarray(z[key], dtype=bool)
+
+    energy_by_graph: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for key in z.files:
+        if key.startswith("energies_"):
+            gname = key[len("energies_") :]
+            ts_key = f"energy_Ts_{gname}"
+            if ts_key in z.files:
+                energy_by_graph[gname] = (
+                    np.asarray(z[ts_key]),
+                    np.asarray(z[key]),
+                )
+
+    return PCAResult(
+        true_graph=true_graph,
+        layer=layer,
+        seq_len=seq_len,
+        window=window,
+        snapshot_Ts=snapshot_Ts,
+        energy_Ts=energy_Ts,
+        class_means_by_T=class_means_by_T,
+        present_by_T=present_by_T,
+        energy_by_graph=energy_by_graph,
+    )
+
+
+def write_pca_evolution_gif(
+    result: PCAResult,
+    graph: UndirectedGraph,
+    out_path: str | Path,
+    words: Sequence[str] = WORDS,
+    overlay_graphs: Mapping[str, UndirectedGraph] | None = None,
+    duration_ms: int = 900,
+    figsize: tuple[float, float] = (10.8, 4.85),
+    dpi: int = 125,
+) -> Path:
+    """Animate snapshot PCA panels (one frame per stored context length ``T``) as a GIF.
+
+    Each frame is laid out **horizontally**: PC1/2 (left), PC3/4 (right).  Requires Pillow.
+    Intended for README / slides; regenerate with ``scripts/make_pca_gif.py``.
+    """
+
+    import io
+
+    from PIL import Image
+
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    Ts = sorted(result.class_means_by_T)
+    frames: list[Image.Image] = []
+    for T in Ts:
+        fig, (ax_pc12, ax_pc34) = plt.subplots(1, 2, figsize=figsize)
+        _fill_pca_snapshot_column(
+            ax_pc12,
+            ax_pc34,
+            T,
+            result,
+            graph,
+            words,
+            overlay_graphs,
+            show_labels=True,
+        )
+        fig.suptitle(
+            f"Class-mean PCA · true {result.true_graph} · layer {result.layer} · "
+            f"Nw={result.window}",
+            fontsize=11,
+        )
+        fig.tight_layout()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+        buf.seek(0)
+        with Image.open(buf) as im:
+            frames.append(im.convert("RGB").copy())
+
+    if not frames:
+        raise ValueError("No snapshot times in PCAResult; cannot build GIF.")
+
+    frames[0].save(
+        out,
+        save_all=True,
+        append_images=frames[1:],
+        duration=duration_ms,
+        loop=0,
+        optimize=False,
+    )
+    for f in frames:
+        f.close()
     return out
 
 

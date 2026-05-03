@@ -16,6 +16,7 @@ dependencies:
     - jaxtyping
     - numpy
     - matplotlib
+    - pillow
     - scienceplots
     - plotly
     - tqdm

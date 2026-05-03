@@ -19,7 +19,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         required=True,
-        help="Path to llm_results.json containing all four baseline distributions.",
+        help="Path to llm_results.json with llm_distribution and every baseline "
+        "(bayes, edge_learner, cache, unigram, semantic_prior).",
     )
     parser.add_argument("--out-dir", default=None)
     parser.add_argument(

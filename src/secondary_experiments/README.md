@@ -26,6 +26,13 @@ learner, observing `u -> v` affects future predictions after `u`, but does not
 symmetrically affect predictions after `v`.  This tests whether the LLM can be
 explained by local copying or directed bigram induction.
 
+## Unigram Dirichlet Baseline
+
+The unigram baseline predicts the next token from **global type counts** in the
+context (plus Dirichlet smoothing, same pseudocount `alpha` as the cache).
+It ignores the current word and cannot represent graph adjacency; it tests
+whether the LLM might simply redistribute mass toward frequently seen tokens.
+
 ## Semantic Prior
 
 The semantic-prior baseline queries the LLM with no graph/random-walk context:
@@ -38,7 +45,8 @@ context-induced graph structure.
 
 As context length increases, does the LLM's next-token distribution become
 closer to global graph inference, learned undirected edges, local directed
-transition copying, or pretrained semantic priors?
+transition copying, global unigram statistics, or pretrained semantic priors?
+The mixture fit (``run_mixture.py``) combines all five explicit baselines.
 
 ## Running Experiments
 
@@ -145,9 +153,17 @@ python -m src.secondary_experiments.run_pca \
 Default PCA snapshots are `T=200,400,1400`; default energy curve points are
 `T=60,80,100,150,200,300,400,600,800,1000,1200,1400`.
 
+From a saved `pca_*.npz`, build a short **GIF** (horizontal PC1/2 | PC3/4 per frame) for slides or the repo README:
+
+```bash
+python scripts/make_pca_gif.py \
+  --npz src/secondary_experiments/results/all_graphs/grid/pca_grid.npz \
+  --out docs/readme_pca_evolution.gif
+```
+
 ### Mixture-of-Baselines Analysis
 
-After a full LLM run, fit a Bayesian mixture over the four baselines:
+After a full LLM run, fit a Bayesian mixture over the five baselines:
 
 ```bash
 python -m src.secondary_experiments.run_mixture \

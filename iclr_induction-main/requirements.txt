@@ -1,9 +1,0 @@
-torch
-numpy
-matplotlib
-scienceplots
-transformer_lens==2.16.1
-einops
-jaxtyping
-tqdm
-plotly
