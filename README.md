@@ -262,9 +262,9 @@ If you build on this work, please cite:
 
 ```bibtex
 @misc{kowalyshyn2025incontext,
-  title  = {In-Context Bayesians: Graph Structure Learning in Large Language Models},
+  title  = {ICML: IN-CONTEXT MODEL OF LEARNING - BELIEF OR CIRCUITRY?},
   author = {Kowalyshyn, Katharine and Duggan, Timothy and Little, Daniel},
-  year   = {2025},
+  year   = {2026},
   note   = {Bayesian Deep Learning Final Project}
 }
 ```
