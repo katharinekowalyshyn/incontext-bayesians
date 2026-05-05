@@ -190,6 +190,32 @@ python -m src.secondary_experiments.plot_pca_rho_grid --split
 python -m src.secondary_experiments.plot_pca_rho_grid --off-diagonal --with-structure --split
 ```
 
+### 5. Causal intervention experiments
+
+Activation patching and steering live in `experiments/` and reuse the secondary
+graph definitions, random-walk generation, tokenization, and TransformerLens
+model loader.  See `docs/causal_interventions.md` for the full protocol,
+including seen-edge versus held-out-edge metrics.
+
+```bash
+python experiments/activation_patching.py \
+  --model meta-llama/Llama-3.1-8B \
+  --clean_graph grid --corrupt_graph ring \
+  --num_pairs 500 --context_length 128 --seed 0 \
+  --positions final \
+  --output_dir results/patching/grid_vs_ring
+
+python experiments/steering.py \
+  --model meta-llama/Llama-3.1-8B \
+  --source_graph grid --target_graph ring \
+  --num_train_contexts 1000 --num_eval_contexts 500 \
+  --context_length 128 \
+  --layers 20 21 22 23 24 25 26 27 28 \
+  --alphas -5 -2 -1 -0.5 0 0.5 1 2 5 \
+  --seed 0 \
+  --output_dir results/steering/grid_minus_ring
+```
+
 ---
 
 ## Key Results
@@ -268,4 +294,3 @@ If you build on this work, please cite:
   note   = {Bayesian Deep Learning Final Project}
 }
 ```
-
