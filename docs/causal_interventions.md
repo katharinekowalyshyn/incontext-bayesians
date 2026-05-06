@@ -128,7 +128,7 @@ python experiments/steering.py \
   --target_graph ring \
   --num_train_contexts 1000 \
   --num_eval_contexts 500 \
-  --context_length 128 \
+  --context_length 1400 \
   --layers 20 21 22 23 24 25 26 27 28 \
   --alphas -5 -2 -1 -0.5 0 0.5 1 2 5 \
   --seed 0 \

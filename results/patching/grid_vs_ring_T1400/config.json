@@ -1,0 +1,28 @@
+{
+  "model": "meta-llama/Llama-3.1-8B",
+  "clean_graph": "grid",
+  "corrupt_graph": "ring",
+  "num_pairs": 200,
+  "context_length": 1400,
+  "seed": 0,
+  "output_dir": "results/patching/grid_vs_ring_T1400",
+  "layers": [
+    14,
+    15,
+    16,
+    20,
+    24,
+    26,
+    28,
+    30
+  ],
+  "positions": [
+    "final"
+  ],
+  "activation": "resid_post",
+  "dtype": "float16",
+  "device": null,
+  "top_k": 5,
+  "min_abs_denom": 1e-06,
+  "resume": false
+}
