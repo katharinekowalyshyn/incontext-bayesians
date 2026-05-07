@@ -254,18 +254,5 @@ Tests cover the Bayesian observer (posterior normalisation, flat-prior recovery)
 - Park et al. (2025). *The geometry of categorical and hierarchical concepts in large language models.* ICLR 2025.
 - Elhage et al. (2021). *A mathematical framework for transformer circuits.* Anthropic.
 
----
 
-## Citation
-
-If you build on this work, please cite:
-
-```bibtex
-@misc{kowalyshyn2025incontext,
-  title  = {ICML: IN-CONTEXT MODEL OF LEARNING - BELIEF OR CIRCUITRY?},
-  author = {Kowalyshyn, Katharine and Duggan, Timothy and Little, Daniel},
-  year   = {2026},
-  note   = {Bayesian Deep Learning Final Project}
-}
-```
 
