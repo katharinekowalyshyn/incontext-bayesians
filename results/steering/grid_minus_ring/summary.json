@@ -1,0 +1,275 @@
+{
+  "num_rows": 267786,
+  "groups": {
+    "random_norm_matched|source_minus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.002278840495395517,
+      "se_normalized_effect": 0.0001746007170285626
+    },
+    "random_norm_matched|source_minus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0011824612120565085,
+      "se_normalized_effect": 0.00019395157661071392
+    },
+    "random_norm_matched|source_minus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.001087190103902224,
+      "se_normalized_effect": 0.00016359464012402603
+    },
+    "random_norm_matched|source_minus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0020102637896747544,
+      "se_normalized_effect": 0.000344139099133095
+    },
+    "random_norm_matched|source_minus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.003365082801086766,
+      "se_normalized_effect": 0.0002170580604404183
+    },
+    "random_norm_matched|source_minus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0027307598238981968,
+      "se_normalized_effect": 0.0002722599102336025
+    },
+    "random_norm_matched|source_minus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0031654458469112007,
+      "se_normalized_effect": 0.0003143049083038584
+    },
+    "random_norm_matched|source_minus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0013000024015408186,
+      "se_normalized_effect": 0.0003854071999892093
+    },
+    "random_norm_matched|source_minus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0013547030328843164,
+      "se_normalized_effect": 0.00042294617236929776
+    },
+    "random_norm_matched|target_plus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0058234822366505755,
+      "se_normalized_effect": 0.00023693025523957608
+    },
+    "random_norm_matched|target_plus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.002698013255020465,
+      "se_normalized_effect": 0.00024963323227942863
+    },
+    "random_norm_matched|target_plus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0037630553529147555,
+      "se_normalized_effect": 0.00024973122461161636
+    },
+    "random_norm_matched|target_plus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00599874526333986,
+      "se_normalized_effect": 0.00041723106535163296
+    },
+    "random_norm_matched|target_plus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.005315924515422085,
+      "se_normalized_effect": 0.0003239170146206584
+    },
+    "random_norm_matched|target_plus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.006193562125605575,
+      "se_normalized_effect": 0.0003409068971132071
+    },
+    "random_norm_matched|target_plus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.006865063194610717,
+      "se_normalized_effect": 0.00037489638042591006
+    },
+    "random_norm_matched|target_plus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00277969317122743,
+      "se_normalized_effect": 0.00046939003095723355
+    },
+    "random_norm_matched|target_plus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.004278158774944668,
+      "se_normalized_effect": 0.0004990028983846741
+    },
+    "real|source_minus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.013314493095898234,
+      "se_normalized_effect": 0.0009556331759495075
+    },
+    "real|source_minus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.012173742735746973,
+      "se_normalized_effect": 0.0010581006385230343
+    },
+    "real|source_minus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.012894496688781277,
+      "se_normalized_effect": 0.001021355962591902
+    },
+    "real|source_minus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.012998043130423183,
+      "se_normalized_effect": 0.001093298970994348
+    },
+    "real|source_minus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.01705560362664202,
+      "se_normalized_effect": 0.0012357897495219093
+    },
+    "real|source_minus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.018022984402371097,
+      "se_normalized_effect": 0.0013126674098593825
+    },
+    "real|source_minus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.023947173522010198,
+      "se_normalized_effect": 0.0016221520884756877
+    },
+    "real|source_minus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.03071138726055589,
+      "se_normalized_effect": 0.001965759215183433
+    },
+    "real|source_minus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.035461926160860094,
+      "se_normalized_effect": 0.002204809218281888
+    },
+    "real|target_plus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.03768329712899892,
+      "se_normalized_effect": 0.0023374853040976635
+    },
+    "real|target_plus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.03421742800477569,
+      "se_normalized_effect": 0.0023953277716978294
+    },
+    "real|target_plus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.03159583174206558,
+      "se_normalized_effect": 0.0022334987123744394
+    },
+    "real|target_plus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.031907161132663966,
+      "se_normalized_effect": 0.0023626048166645666
+    },
+    "real|target_plus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.029646945487016116,
+      "se_normalized_effect": 0.0028996743633356303
+    },
+    "real|target_plus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.030539601527505504,
+      "se_normalized_effect": 0.0032992021223191524
+    },
+    "real|target_plus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.03908318139145814,
+      "se_normalized_effect": 0.003497191011479325
+    },
+    "real|target_plus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.04319162187740189,
+      "se_normalized_effect": 0.0037514317021316917
+    },
+    "real|target_plus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.04622135673807943,
+      "se_normalized_effect": 0.0040457761534302954
+    },
+    "shuffled_label|source_minus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00026109765665481837,
+      "se_normalized_effect": 0.0001010015316700413
+    },
+    "shuffled_label|source_minus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00022914180736103727,
+      "se_normalized_effect": 0.00012382806629667188
+    },
+    "shuffled_label|source_minus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00021406504569369085,
+      "se_normalized_effect": 0.00012331030684341419
+    },
+    "shuffled_label|source_minus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00022257717035272838,
+      "se_normalized_effect": 0.00012266707244103223
+    },
+    "shuffled_label|source_minus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.000218904996096827,
+      "se_normalized_effect": 0.0001304022919627863
+    },
+    "shuffled_label|source_minus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00020950268306205915,
+      "se_normalized_effect": 0.00015930742742985252
+    },
+    "shuffled_label|source_minus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0002187963127087327,
+      "se_normalized_effect": 0.00017474411125804155
+    },
+    "shuffled_label|source_minus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00017878302870456055,
+      "se_normalized_effect": 0.00019385853333034697
+    },
+    "shuffled_label|source_minus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00016911779986711085,
+      "se_normalized_effect": 0.0002126700315846767
+    },
+    "shuffled_label|target_plus_source_minus_target|20": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0006745750529498905,
+      "se_normalized_effect": 0.00012660409773476144
+    },
+    "shuffled_label|target_plus_source_minus_target|21": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0006346237889856288,
+      "se_normalized_effect": 0.0001724290692867154
+    },
+    "shuffled_label|target_plus_source_minus_target|22": {
+      "n": 4959,
+      "mean_normalized_effect": 0.000597254477112084,
+      "se_normalized_effect": 0.00016889726931825023
+    },
+    "shuffled_label|target_plus_source_minus_target|23": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0005840875419123117,
+      "se_normalized_effect": 0.00016879698330096203
+    },
+    "shuffled_label|target_plus_source_minus_target|24": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0005705300342865681,
+      "se_normalized_effect": 0.00019296407440574633
+    },
+    "shuffled_label|target_plus_source_minus_target|25": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0004965445796928234,
+      "se_normalized_effect": 0.00024366418527817514
+    },
+    "shuffled_label|target_plus_source_minus_target|26": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0005170759744985946,
+      "se_normalized_effect": 0.00026379477298721506
+    },
+    "shuffled_label|target_plus_source_minus_target|27": {
+      "n": 4959,
+      "mean_normalized_effect": 0.0003941794998857301,
+      "se_normalized_effect": 0.0002844380089888399
+    },
+    "shuffled_label|target_plus_source_minus_target|28": {
+      "n": 4959,
+      "mean_normalized_effect": 0.00041753995432786627,
+      "se_normalized_effect": 0.0003137684421776412
+    }
+  }
+}

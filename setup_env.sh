@@ -8,7 +8,7 @@
 
 set -e
 
-CONDA=/home/katie/miniconda3/bin/conda
+CONDA=conda
 ENV_NAME=incontext-bayesians
 
 echo "==> Creating conda environment '$ENV_NAME' (Python 3.11)..."

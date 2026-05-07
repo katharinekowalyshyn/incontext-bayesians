@@ -96,12 +96,13 @@ def resolve_dtype(dtype: str | torch.dtype) -> torch.dtype:
 
 
 def default_device() -> str:
-    """Prefer CUDA, then Apple MPS, then CPU."""
+    """Prefer CUDA, then Apple MPS, then CPU.
+    Removed MPS for now because it seemed worse"""
 
     if torch.cuda.is_available():
         return "cuda"
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return "mps"
+    # if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    #     return "mps"
     return "cpu"
 
 
